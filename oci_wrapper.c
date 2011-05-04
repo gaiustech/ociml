@@ -84,6 +84,53 @@ value caml_oci_server_attach(value handles, value dbname) {
     snprintf(buf, 255, "Cannot attach to server \"%s\"", db);
     raise_caml_exception(-1, buf);
   }
+  OCIAttrSet((void*)h.svc, (ub4) OCI_HTYPE_SVCCTX, (void*)h.srv, (ub4) 0, (ub4) OCI_ATTR_SERVER, h.err);
+  CAMLreturn(Val_unit);
+}
+
+/* set an attribute within a session */
+value caml_oci_sess_set_attr(value handles, value attr_name, value attr_value) {
+  CAMLparam3(handles, attr_name, attr_value);
+  oci_handles_t h = Oci_handles_val(handles);
+  char* v = String_val(attr_value);
+  int n = Int_val(attr_name);
+  OCIAttrSet(h.ses, OCI_HTYPE_SESSION,(void *)v, (ub4)strlen(v), n, h.err);
+  
+  CAMLreturn(Val_unit);
+}
+
+/* Actually start a session. It is probably quite inefficient to keep coercing 
+   my handles across the C/OCaml boundary but other than making them global
+   and forfeiting having multiple sessions open I'm not sure what to do */
+value caml_oci_session_begin(value handles) {
+  CAMLparam1(handles);
+  oci_handles_t h = Oci_handles_val(handles);
+  OCIAttrSet ((void*)h.svc, OCI_HTYPE_SVCCTX, (void*)h.srv, (ub4) 0, OCI_ATTR_SERVER,h.err);
+  sword x = OCISessionBegin ((void*)h.svc, h.err, h.ses, OCI_CRED_RDBMS, OCI_DEFAULT);
+  if (x != OCI_SUCCESS)  {
+    text* errbuf = (text*)malloc(512);
+    sb4 errcode;
+    OCIErrorGet ((void*) h.err, (ub4) 1, (text*) NULL, &errcode, errbuf, (ub4) sizeof(errbuf), (ub4) OCI_HTYPE_ERROR);
+    raise_caml_exception((int)errcode, (char*)errbuf);
+  }
+  OCIAttrSet ((void*)h.svc, OCI_HTYPE_SVCCTX, (void*)h.ses, (ub4) 0, OCI_ATTR_SESSION, h.err);
+  CAMLreturn(Val_unit);
+}
+
+  /* now do a pointless query to force v$session.module to update */
+value caml_oci_set_module(value env, value handles, value module) {
+  CAMLparam3(env, handles, module);
+  OCIEnv* e = Oci_env_val(env);
+  oci_handles_t h = Oci_handles_val(handles);
+  char* m = String_val(module);
+
+  OCIAttrSet(h.ses, OCI_HTYPE_SESSION,(void *)m, (ub4)strlen(m),OCI_ATTR_MODULE , h.err);
+
+  char* sql = "commit;";
+  OCIStmt* sth = NULL;
+  OCIHandleAlloc((dvoid*)e, (dvoid**) &sth, OCI_HTYPE_STMT, 0, (dvoid**) 0);  
+  OCIStmtPrepare(sth, h.err, (text*)sql, strlen(sql), OCI_NTV_SYNTAX, OCI_DEFAULT);
+  OCIStmtExecute(h.svc,sth, h.err, (ub4) 1, (ub4) 0, (CONST OCISnapshot *) NULL, (OCISnapshot *) NULL, OCI_DEFAULT);
 
   CAMLreturn(Val_unit);
 }
