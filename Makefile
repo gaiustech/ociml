@@ -1,7 +1,7 @@
 # Makefile for OCI/ML project
 
 CCFLAGS	= -ccopt -I/usr/lib/ocaml -ccopt -I$(ORACLE_HOME)/rdbms/public -ccopt -Wall
-COBJS	= oci_wrapper.o 
+COBJS	= oci_common.o oci_connect.o oci_query.o
 MLOBJS	= oci_wrapper.cmi 
 CCLIBS  = -cclib -L$(ORACLE_HOME)/lib -cclib -locci -cclib -lclntsh
 

@@ -1,4 +1,4 @@
-(* Fairly thin wrapper around low-level OCI functions, used to implement higher-level OCI/ML library *)
+(* Fairly thin wrapper around low-level OCI functions, used to implement higher-level OCI*ML library *)
 
 (* OCI handles that have to be tracked at the application level *)
 type oci_env (* global OCI environment *)
@@ -15,6 +15,7 @@ external oci_set_module: oci_env -> oci_handles -> string -> unit = "caml_oci_se
 
 external oci_session_end: oci_handles -> unit = "caml_oci_session_end"
 external oci_server_detach: oci_handles -> unit = "caml_oci_server_detach"
+external oci_free_handles: oci_env -> oci_handles -> unit = "caml_oci_free_handles"
 external oci_terminate: unit -> unit = "caml_oci_terminate" (* final cleanup *)
 
 (* query functions *)
