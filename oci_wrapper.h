@@ -10,6 +10,10 @@ typedef struct {
 
 #define Oci_env_val(v) (*((OCIEnv**) Data_custom_val(v)))
 #define Oci_handles_val(v) (*((oci_handles_t*) Data_custom_val(v)))
+#define Oci_statement_val(v) (*((OCIStmt**) Data_custom_val(v)))
+
+/* we will never do comparison on any of the OCI env/conn types */
+static struct custom_operations oci_custom_ops = {"oci_custom_ops", NULL, NULL, NULL, NULL, NULL};
 
 /* declare common C functions (not called directly from OCaml) */
 void debug(char* msg);

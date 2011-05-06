@@ -8,9 +8,13 @@ let () =
   try 
     let lda = oralogon "guy/abc123" in
     let lda2 = oralogon "guy/abc123@blame" in
+    let sth = oraopen lda in
+    let sth2 = oraopen lda in
     sleep 10;
     oracommit lda;
     oraroll lda2;
+    oraclose sth2;
+    oraclose sth;
     oralogoff lda;
     oralogoff lda2
   with 

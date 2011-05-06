@@ -12,11 +12,12 @@
 #include <time.h>
 #include "oci_wrapper.h"
 
+/* write a timestamped log message {C} for C code */
 void debug(char* msg) {
   char* datebuf = (char*)malloc(32);
   time_t t = time(NULL);
   strftime(datebuf, 31, "%a %b %e %T %Y", (gmtime(&t)));
-  fprintf(stderr, "%s: %s\n", datebuf, msg);
+  fprintf(stderr, "%s: %s {C}\n", datebuf, msg);
 }
 
 /* kick an error back into OCaml-land */

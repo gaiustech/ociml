@@ -14,8 +14,6 @@
 
 #define DEBUG 1
 
-/* we will never do comparison on any of the OCI env/conn types */
-static struct custom_operations oci_custom_ops = {"oci_custom_ops", NULL, NULL, NULL, NULL, NULL};
 
 /* Create an OCI environment */
 OCIEnv* global_env;

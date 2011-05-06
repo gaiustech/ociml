@@ -41,4 +41,25 @@ value caml_oci_rollback (value handles) {
   CAMLreturn(Val_unit);
 }
 
+/* allocate a blank statement handle as part of the global env */
+value caml_oci_stmt_alloc(value env) {
+  CAMLparam1(env);
+  OCIEnv* e = Oci_env_val(env);
+  OCIStmt* sth = NULL;
+  
+  sword x = OCIHandleAlloc((dvoid*)e, (dvoid**) &sth, OCI_HTYPE_STMT, 0, (dvoid**) 0);   
+  
+  value v = caml_alloc_custom(&oci_custom_ops, sizeof(OCIStmt*), 0, 1);
+  Oci_statement_val(v) = sth;
+  CAMLreturn(v);
+}
+
+value caml_oci_stmt_free(value stmt) {
+  CAMLparam1(stmt);
+  OCIStmt* s = Oci_statement_val(stmt);
+  OCIHandleFree((dvoid*)s, OCI_HTYPE_STMT);
+ 
+  CAMLreturn(Val_unit);
+}
+
 /* end of file */
