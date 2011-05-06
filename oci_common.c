@@ -33,7 +33,7 @@ void raise_caml_exception(int exception_code, char* exception_string) {
 void oci_non_success(oci_handles_t h) {
   text* errbuf = (text*)malloc(256);
   sb4 errcode;
-  OCIErrorGet ((void*) h.err, 1, NULL, &errcode, errbuf, 255,  OCI_HTYPE_ERROR);
+  OCIErrorGet ((dvoid*) h.err, 1, NULL, &errcode, errbuf, 255,  OCI_HTYPE_ERROR);
   raise_caml_exception((int)errcode, (char*)errbuf);
 }
 

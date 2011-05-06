@@ -17,9 +17,9 @@ let handle_seq = ref 0
 (* same with statements, counters for parses, binds and execs, and the parent 
    connection (as it is allocated from the global OCI environment) *)
 type meta_statement = {statement_id:int; 
-		       mutable parses: int;
-		       mutable binds: int;
-		       mutable execs: int;
+		       mutable parses:int;
+		       mutable binds:int;
+		       mutable execs:int;
 		       parent_lda:meta_handle; 
 		       sth:oci_statement}
 let statement_seq = ref 0
@@ -34,6 +34,7 @@ sig
   val oraroll:   meta_handle -> unit
   val oraopen:   meta_handle -> meta_statement
   val oraclose:  meta_statement -> unit
+  val oradebug:  bool
 end
 
 (* various constants from oci.h *)
@@ -45,8 +46,8 @@ let oci_attr_module             = 366
 
 (* write a timestamped log message (log messages from the C code are tagged {C} 
    so anything else is from the ML *)
-let debug_on = true
-let debug msg = match debug_on with |true -> log_message msg |false -> ()
+let oradebug = ref false
+let debug msg = match !oradebug with |true -> log_message msg |false -> ()
 
 (* for exceptions thrown back by the C code, I generally intend that OCI itself 
    does the bulk of the error checking *)

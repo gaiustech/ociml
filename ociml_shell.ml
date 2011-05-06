@@ -6,6 +6,7 @@ open Printf
 
 let () =
   try 
+    oradebug := true;
     let lda = oralogon "guy/abc123" in
     let lda2 = oralogon "guy/abc123@blame" in
     let sth = oraopen lda in
