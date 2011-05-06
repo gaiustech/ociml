@@ -31,7 +31,7 @@ let log_message msg =
     sprintf "%3s %3s %2d %02d:%02d:%02d %4d" days.(lt.tm_wday)
       months.(lt.tm_mon) lt.tm_mday lt.tm_hour lt.tm_min lt.tm_sec
       (lt.tm_year + 1900)
-  in print_endline (ts ^ (": " ^ msg))
+  in prerr_endline (ts ^ (": " ^ msg))
   
 (* End of file *)
   

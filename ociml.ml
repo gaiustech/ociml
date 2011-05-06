@@ -19,10 +19,11 @@ let debug msg = match verbose with |true -> log_message msg |false -> ()
 exception Ociml_exception of (int * string) 
 let _ = Callback.register_exception "Ociml_exception" (Ociml_exception (-20000, "User defined error"))
   
-(*let () = 
-  oci_initialize ()*)
-
+(* do this just once at the start *)
 let global_env = oci_env_create ()
+
+type meta_handle = int * oci_handles
+let handle_counter = ref 0
 
 let oralogon username password database = 
   let h = oci_alloc_handles global_env in
@@ -30,10 +31,20 @@ let oralogon username password database =
   oci_sess_set_attr h oci_attr_username username;
   oci_sess_set_attr h oci_attr_password password;
   oci_session_begin h;
-  debug (sprintf "logged into Oracle as %s@%s" username database);
-  h
+  handle_counter := (!handle_counter + 1);
+  let c = !handle_counter in 
+  debug (sprintf "connection id %d logged into Oracle as %s@%s" c username database);
+  (c, h)
 
-let () =     
+let oralogoff lda =
+  let (c, h) = lda in 
+  oci_session_end h;
+  oci_server_detach h;
+  oci_free_handles h;
+  debug (sprintf "connection id %d disconnected from Oracle" c);
+  ()
+
+(*let () =     
     try
       let e = oci_env_create () in
       let h = oci_alloc_handles e in
@@ -45,10 +56,10 @@ let () =
       sleep 15;
       oci_session_end h;
       oci_server_detach  h;
-      oci_free_handles e h;
-      (* oci_terminate () *)
+      oci_free_handles h;
+      oci_terminate e
     with 
 	Ociml_exception e -> 
-	  match e with (e_code, e_desc) -> prerr_endline (sprintf "OCI*ML: %s " e_desc)
+	  match e with (e_code, e_desc) -> prerr_endline (sprintf "OCI*ML: %s " e_desc) *)
 	  
 (* End of file *)

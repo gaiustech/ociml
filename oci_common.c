@@ -9,7 +9,15 @@
 #include <string.h>
 #include <stdio.h>
 #include <oci.h>
+#include <time.h>
 #include "oci_wrapper.h"
+
+void debug(char* msg) {
+  char* datebuf = (char*)malloc(32);
+  time_t t = time(NULL);
+  strftime(datebuf, 31, "%a %b %e %T %Y", (gmtime(&t)));
+  fprintf(stderr, "%s: %s\n", datebuf, msg);
+}
 
 /* kick an error back into OCaml-land */
 void raise_caml_exception(int exception_code, char* exception_string) {

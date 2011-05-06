@@ -8,33 +8,48 @@
 #include <caml/fail.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <oci.h>
 #include "oci_wrapper.h"
 
-/* Initialize the OCI library */
-value caml_oci_initialize(value unit) {
-  CAMLparam1(unit);
-  OCIInitialize((ub4) OCI_DEFAULT, (dvoid *)0,
-                       (dvoid * (*)(dvoid *, size_t)) 0,
-                       (dvoid * (*)(dvoid *, dvoid *, size_t))0,
-                       (void (*)(dvoid *, dvoid *)) 0 );
-  CAMLreturn(Val_unit);
-}
+#define DEBUG 1
 
 /* we will never do comparison on any of the OCI env/conn types */
 static struct custom_operations oci_custom_ops = {"oci_custom_ops", NULL, NULL, NULL, NULL, NULL};
 
 /* Create an OCI environment */
+OCIEnv* global_env;
+
+/* final clean disconnection from shared memory - OCITerminate actually needed only when connected locally */
+void oci_final_cleanup(void) {
+#ifdef DEBUG
+  debug("oci_final_cleanup: entered");
+#endif
+ if (global_env) {
+    OCIHandleFree((dvoid*)global_env, OCI_HTYPE_ENV);
+  }
+  
+  OCITerminate(OCI_DEFAULT);
+}
+
 value caml_oci_env_create(value unit) {
+#ifdef DEBUG
+  debug("caml_oci_env_create: entered");
+#endif
+
   CAMLparam1(unit);
-  OCIEnv* env;
-  sword x = OCIEnvCreate(&env, OCI_DEFAULT, 0, 0, 0, 0, 0, 0);
+  sword x = OCIEnvCreate(&global_env, OCI_DEFAULT, 0, 0, 0, 0, 0, 0);
   if (x != OCI_SUCCESS) {
     raise_caml_exception(-1, "Cannot create an OCI environment (check ORACLE_HOME?)");
   }
-  
+
+#ifdef DEBUG
+  debug("caml_oci_env_create: new env created");
+#endif
+
+  atexit(oci_final_cleanup);
   value v = caml_alloc_custom(&oci_custom_ops, sizeof(OCIEnv*), 0, 1);
-  Oci_env_val(v) = env;
+  Oci_env_val(v) = global_env;
   CAMLreturn(v);
 }
 
@@ -138,9 +153,8 @@ value caml_oci_server_detach(value handles) {
 }
 
 /* de-allocate all the handles */
-value caml_oci_free_handles(value env, value handles) {
-  CAMLparam2(env, handles);
-  OCIEnv* e = Oci_env_val(env);
+value caml_oci_free_handles(value handles) {
+  CAMLparam1(handles);
   oci_handles_t h = Oci_handles_val(handles);
 
   /* first the handles, if allocated */
@@ -160,20 +174,14 @@ value caml_oci_free_handles(value env, value handles) {
     OCIHandleFree((dvoid*)h.ses, OCI_HTYPE_SESSION);
   }
 
-  /* then the environment itself */
-  if (e) {
-    OCIHandleFree((dvoid*)e, OCI_HTYPE_ENV);
-  }
-
   CAMLreturn(Val_unit);
 }
 
-/* globally shutdown the OCI library */
 value caml_oci_terminate(value unit) {
   CAMLparam1(unit);
-  
-  OCITerminate(OCI_DEFAULT);
 
+  /* then the environment itself - moved here because we may wish to close a connection but retain the environment */
+  oci_final_cleanup();
   CAMLreturn(Val_unit);
 }
 
