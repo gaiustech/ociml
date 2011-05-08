@@ -26,7 +26,7 @@ void raise_caml_exception(int exception_code, char* exception_string) {
   e = caml_alloc_tuple(2);
   Store_field(e, 0, Val_long(exception_code));
   Store_field(e, 1, caml_copy_string(exception_string));
-  caml_raise_with_arg(*caml_named_value("Ociml_exception"), e);
+  caml_raise_with_arg(*caml_named_value("Oci_exception"), e);
 }  
 
 /* extract the error code and message from the error handle and raise an exception */
