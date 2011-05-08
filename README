@@ -1,0 +1,38 @@
+OCI*ML 0.1
+
+A simple Oracle API for OCaml. See blog for latest: http://gaiustech.wordpress.com 
+
+Developed on OCaml 3.11 and Oracle 10g and 11g on Debian Squeeze with GCC 4. 
+Requires an Oracle client installation to build and at least instantclient to 
+operate.  
+
+Installation instructions:
+
+# make
+# make install
+# ./ociml_shell # to run the sample code - read this too
+
+Currently only the basic DML operations (parse, bind, execute and fetch) are 
+available, in addition to connection and transaction control. This is sufficient 
+to connect to Oracle and run any SQL statements, returning the result set to 
+OCaml code for further processing. Additional features will be added as needed.
+
+The library is structured as a thin wrapper around the OCI[1] library in C, on 
+top of which is a higher level library patterned after OraTcl[2], as much as 
+possible the commands do the same things, but usually with fewer options. The 
+OCaml debug log can be enabled in the application, but C debugging requires 
+#define'ing DEBUG and rebuilding. Debug messages from C are tagged {C}. It is
+intended that a user of OCI*ML should never need to worry about the C layer.
+
+BSD license applies, see file LICENSE included with this distribution.
+
+Inspired by Oracaml[3]
+
+Questions, comments, suggestions etc to ociml@gaius.org.uk.
+
+
+[1] http://download.oracle.com/docs/cd/B28359_01/appdev.111/b28395/toc.htm
+[2] http://oratcl.sourceforge.net/manpage.html
+[3] http://oracaml.sourceforge.net/
+
+(* EOF *)

@@ -14,7 +14,6 @@
 
 #define DEBUG 1
 
-
 /* Create an OCI environment */
 OCIEnv* global_env;
 

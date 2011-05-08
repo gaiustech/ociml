@@ -1,4 +1,4 @@
-/* functions for converting between OCI and OCaml datatypes */
+/* functions for converting between OCI and OCaml datatypes, needed by bind and fetch */
 
 #include <caml/mlvalues.h>
 #include <caml/memory.h>

@@ -4,6 +4,7 @@
 type oci_env (* global OCI environment *)
 type oci_handles (* C struct that bundles error, server, service context and session handles *)
 type oci_statement (* statement handle *)
+type oci_resultset (* result set/cursor *)
 
 (* setup functions, in order in which they should be called - oci_connect.c *)
 external oci_env_create: unit -> oci_env = "caml_oci_env_create"
@@ -26,5 +27,9 @@ external oci_rollback: oci_handles -> unit = "caml_oci_rollback"
 (* statement handles - oci_query.c *)
 external oci_alloc_statement: oci_env -> oci_statement = "caml_oci_stmt_alloc"
 external oci_free_statement: oci_statement -> unit = "caml_oci_stmt_free"
+
+(* DML - oci_query.c *)
+external oci_statement_prepare: oci_handles -> oci_statement -> string -> unit = "caml_oci_stmt_prepare"
+external oci_statement_execute: oci_handles -> oci_statement -> unit = "caml_oci_stmt_execute"
 
 (* End of file *)

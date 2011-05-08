@@ -7,19 +7,16 @@ open Printf
 let () =
   try 
     oradebug := true;
-    let lda = oralogon "guy/abc123" in
-    let lda2 = oralogon "guy/abc123@blame" in
+    let lda = oralogon "gaius/abc123" in
     let sth = oraopen lda in
-    let sth2 = oraopen lda in
-    sleep 10;
+    oraparse sth "insert into t1 values (2)";
+    oraexec sth;
     oracommit lda;
-    oraroll lda2;
-    oraclose sth2;
     oraclose sth;
     oralogoff lda;
-    oralogoff lda2
+
   with 
       Ociml_exception e -> 
-	match e with (e_code, e_desc) -> prerr_endline (sprintf "OCI*ML: %s " e_desc)
+	match e with (e_code, e_desc) -> prerr_endline (sprintf "ociml_shell: %s " e_desc)
 
 (* end of file *)

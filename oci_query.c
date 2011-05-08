@@ -14,6 +14,42 @@
 
 #define DEBUG 1
 
+/* parse a statement for execution */
+value caml_oci_stmt_prepare(value handles, value stmt, value sql) {
+#ifdef DEBUG
+  debug("caml_oci_stmt_prepare entered");
+#endif
+  CAMLparam3(handles, stmt, sql);
+  oci_handles_t h = Oci_handles_val(handles);
+  OCIStmt* sth = Oci_statement_val(stmt);
+  char* sqltext = String_val(sql);
+
+  sword x = OCIStmtPrepare(sth, h.err, (text*)sqltext, strlen(sqltext), OCI_NTV_SYNTAX, OCI_DEFAULT);
+  if (x != OCI_SUCCESS) {
+    oci_non_success(h);
+  } 
+#ifdef DEBUG
+else {
+    debug("caml_oci_stmt_prepare successful");
+  }
+#endif
+  CAMLreturn(Val_unit);
+}
+
+/* execute an already-prepared statement - throws ORA-24337 if not prepared */
+value caml_oci_stmt_execute(value handles, value stmt) {
+  CAMLparam2(handles, stmt);
+  oci_handles_t h = Oci_handles_val(handles);
+  OCIStmt* sth = Oci_statement_val(stmt);
+
+  sword x = OCIStmtExecute(h.svc, sth, h.err, 1,  0, (CONST OCISnapshot*) NULL, (OCISnapshot*) NULL, OCI_DEFAULT);
+  if (x != OCI_SUCCESS) {
+    oci_non_success(h);
+  }
+
+  CAMLreturn(Val_unit);
+}
+
 
 /* commit all work outstanding on this handle  */
 value caml_oci_commit (value handles) {
@@ -48,7 +84,10 @@ value caml_oci_stmt_alloc(value env) {
   OCIStmt* sth = NULL;
   
   sword x = OCIHandleAlloc((dvoid*)e, (dvoid**) &sth, OCI_HTYPE_STMT, 0, (dvoid**) 0);   
-  
+  if (x != OCI_SUCCESS) {
+    raise_caml_exception(-1, "Cannot alloc handle in global env");
+  }
+
   value v = caml_alloc_custom(&oci_custom_ops, sizeof(OCIStmt*), 0, 1);
   Oci_statement_val(v) = sth;
   CAMLreturn(v);
