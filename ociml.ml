@@ -13,7 +13,8 @@ type oci_env (* global OCI environment *)
 type oci_handles (* C struct that bundles error, server, service context and session handles *)
 type oci_statement (* statement handle *)
 type oci_bindhandle (* for binding in prepared statements *)
-type oci_resultset (* result set/cursor *)
+type oci_date 
+type oci_resultset 
 
 (* data structure for use within the library bundling all the handles associated 
    with a connection with a unique identifier and some useful statistics *)
@@ -39,6 +40,7 @@ type meta_statement = {statement_id:int;
 		       mutable execs:int;
 		       mutable sth_op_time:float;
 		       mutable bound_vals:(bind_spec, oci_bindhandle) Hashtbl.t;
+		       mutable ocidates:(bind_spec, oci_date) Hashtbl.t;
 		       parent_lda:meta_handle; 
 		       sth:oci_statement}
 
@@ -70,8 +72,8 @@ external oci_statement_execute: oci_handles -> oci_statement -> unit = "caml_oci
 
 (* binding - oci_query.c *)
 external oci_alloc_bindhandle: unit -> oci_bindhandle = "caml_oci_alloc_bindhandle"
-external oci_bind_by_any: oci_handles -> oci_statement -> oci_bindhandle -> bind_spec -> col_value -> unit = "caml_oci_bind_by_any" 
-
+external oci_bind_by_pos: oci_handles -> oci_statement -> oci_bindhandle -> (int * int) -> col_value -> unit = "caml_oci_bind_by_pos" 
+external oci_bind_date_by_pos: oci_handles -> oci_statement -> oci_bindhandle -> int -> float -> oci_date = "caml_oci_bind_date_by_pos" 
 
 (* public interface - open Oci_wrapper for direct access to the low-level 
    functions - should not be necessary for day-to-day work *)
@@ -99,6 +101,12 @@ let oci_attr_client_identifier  = 278
 let oci_attr_client_info        = 368 
 let oci_attr_module             = 366 
 
+(* various constants from ocidfn.h *)
+let oci_sqlt_odt                = 156
+let oci_sqlt_str                = 5
+let oci_sqlt_int                = 3
+let oci_sqlt_flt                = 4
+
 (* write a timestamped log message (log messages from the C code are tagged {C} 
    so anything else is from the ML. This can be set from the application.  *)
 let oradebug = ref false
@@ -120,16 +128,25 @@ let date_to_double t =
    Note that if you bind the same column by position and by name in subsequent
    calls you will have a small leak in the bind handle cache until the next parse*)
 let orabind sth bs cv =
+  (match bs with 
+    |Pos p -> debug(sprintf "orabind: p=%d" p) 
+    |Name n -> ()
+  );
   (* if we have a bind handle for this bind spec, reuse it otherwise allocate a new one *)
   let bh = (try 
 	      Hashtbl.find sth.bound_vals bs
     with Not_found -> let bh = oci_alloc_bindhandle () in
 		      Hashtbl.add sth.bound_vals bs bh; 
 		      bh ) in
-  let cv2 = match cv with
-    | Datetime x -> Number (date_to_double x)
-    | Varchar x -> Varchar x|Integer x -> Integer x|Number x -> Number x in
-  oci_bind_by_any sth.parent_lda.lda sth.sth bh bs cv2 ;
+  (match bs with
+    |Pos p -> (match cv with
+	|Datetime x -> (Hashtbl.replace sth.ocidates bs (oci_bind_date_by_pos sth.parent_lda.lda sth.sth bh p (date_to_double x)))
+	|Varchar x  -> oci_bind_by_pos sth.parent_lda.lda sth.sth bh (p, oci_sqlt_str) (Varchar x)                 
+	|Integer x  -> oci_bind_by_pos sth.parent_lda.lda sth.sth bh (p, oci_sqlt_int) (Integer x)
+	|Number x   -> oci_bind_by_pos sth.parent_lda.lda sth.sth bh (p, oci_sqlt_flt) (Number x)
+    )
+    |Name n -> () (* not implemented yet *)
+  );
   sth.binds <- (sth.binds +1);
   ()
       
@@ -170,7 +187,7 @@ let oraopen lda =
   statement_seq := (!statement_seq + 1);
   let c = !statement_seq in
   debug (sprintf "allocated statement id %d on connection id %d" c lda.connection_id);
-  {statement_id=c; parses=0; binds=0; execs=0; sth_op_time=0.0; bound_vals=(Hashtbl.create 10); parent_lda=lda; sth=s}
+  {statement_id=c; parses=0; binds=0; execs=0; sth_op_time=0.0; bound_vals=(Hashtbl.create 10); ocidates=(Hashtbl.create 10); parent_lda=lda; sth=s}
 
 (* connect to Oracle, connstr in format "user/pass@db" or "user/pass" like OraTcl *)
 let oralogon connstr = 

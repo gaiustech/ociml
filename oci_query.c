@@ -80,6 +80,9 @@ value caml_oci_rollback (value handles) {
 
 /* allocate a bind handle (pointer) */
 value caml_oci_alloc_bindhandle(value unit) {
+#ifdef DEBUG
+  debug("caml_oci_alloc_bindhandle: entered");
+#endif
   CAMLparam0();
   OCIBind * bh = (OCIBind*)0;
   value v = caml_alloc_custom(&oci_custom_ops, sizeof(OCIBind*), 0, 1);
@@ -110,59 +113,75 @@ value caml_oci_stmt_free(value stmt) {
    CAMLreturn(Val_unit);
 }
 
-/* bind colval at position pos using bind handle bh in statement stmt OR to named parameter name depending on bindtype */
-value caml_oci_bind_by_any(value handles, value stmt, value bindh, value posname, value colval) {
-#ifdef DEBUG
-  debug("caml_oci_bind_by_any: entered");
-#endif
-
-  CAMLparam5(handles, stmt, bindh, posname, colval);
-
-  /* unpack all the things that are the same regardless of bindtype and datatype */
+/* dates are special as we need to maintain the allocated OCIDate object */
+value caml_oci_bind_date_by_pos(value handles, value stmt, value bindh, value pos, value colval) {
+  CAMLparam5(handles, stmt, bindh, pos, colval);
   oci_handles_t h = Oci_handles_val(handles);
   OCIStmt* s = Oci_statement_val(stmt);
   OCIBind* bh = Oci_bindhandle_val(bindh);
-  sword x;
-  
+  int p = Int_val(pos);
+  double epoch = Double_val(colval); /* datetime is epoch at this point - must convert to Oracle */
+
+  OCIDate ocidate;
+  epoch_to_ocidate(epoch, &ocidate);
+  /* allocate a new OCIDate on the heap and copy onto it */
+  OCIDate* od2 = (OCIDate*)malloc(sizeof(OCIDate));
+  memcpy(od2, &ocidate, sizeof(OCIDate));
+#ifdef DEBUG
+  char* fmt = "DD-MON-YYYY HH24:MI:SS";
+  char dbuf[256];
+  ub4 dbufsize=255;
+  debug("testing converted OCIDate:");
+  OCIDateToText(h.err, (const OCIDate*)od2, (text*)fmt, (ub1)strlen(fmt), (text*)0, (ub4)0, &dbufsize, (text*)dbuf);
+  debug(dbuf);
+#endif
+  sword x = OCIBindByPos(s, &bh, h.err, (ub4)p, (dvoid*)od2, (sb4)sizeof(OCIDate), SQLT_ODT, 0, 0, 0, 0, 0, OCI_DEFAULT);
+   if (x != OCI_SUCCESS) {
+    oci_non_success(h);
+  }
+   return (value)od2;  /* I am assuming the OCaml GC will just take care of this... */
+}
+
+/* bind colval at position pos using bind handle bh in statement stmt OR to named parameter name depending on bindtype */
+value caml_oci_bind_by_pos(value handles, value stmt, value bindh, value posandtype, value colval) {
+#ifdef DEBUG
+  debug("caml_oci_bind_by_pos: entered");
+#endif
+  CAMLparam5(handles, stmt, bindh, posandtype, colval);
+
+  int dt = Int_val(Field(posandtype, 1));
+  int p = Int_val(Field(posandtype, 0));
+#ifdef DEBUG
+  char dbuf[256]; snprintf(dbuf, 255, "binding datatype %d to position %d", dt, p); debug(dbuf);
+#endif
+
+  oci_handles_t h = Oci_handles_val(handles);
+  OCIStmt* s = Oci_statement_val(stmt);
+  OCIBind* bh = Oci_bindhandle_val(bindh);
+
+  /* annoyingly can't create a local var immediately after a case in GCC - http://gcc.gnu.org/bugzilla/show_bug.cgi?id=37231  */
   union cv_t {
     char* c;
     int i;
-    float f;
+    double f;
   } c;
 
-  union pos_t {
-    int i;
-    char* c;
-  } p;
+  sword x;
 
-  /* figure out what type our posname is - 0 for pos, 1 for name */
-  switch (Tag_val(posname)) {
-  case 0: 
-    p.i = Int_val(Field(posname, 0)); 
-    /* figure out what type our colval is - 0 Varchar, 1 Datetime, 2 Integer, 3 Float */
-    switch (Tag_val(colval)) {
-    case 0:
-#ifdef DEBUG
-      debug("binding type varchar by position");
-#endif
-      c.c = String_val(Field(colval,0)); 
-      x = OCIBindByPos(s, &bh, h.err, (ub4) p.i, (dvoid*)c.c, (sb4) strlen(c.c), SQLT_CHR, 0, 0, 0, 0, 0, OCI_DEFAULT);
-      break;
-    case 1: /* datetime is epoch at this point - must convert to Oracle 7-byte format */
-      c.c  = "0000000";
-      break;
-    case 2:
-      break;
-    case 3:
-      break;
-    default:
-      debug("caml_oci_bind_by_any: should never see a datatype from OCaml I can't bind");
-    }
+  switch (dt) {
+  case SQLT_STR:
+    c.c = String_val(Field(colval,0));
+    x = OCIBindByPos(s, &bh, h.err, (ub4)p, (dvoid*)c.c, (sb4) strlen(c.c), SQLT_CHR, 0, 0, 0, 0, 0, OCI_DEFAULT);
     break;
-  case 1: /* same again for bind by name */
+  case SQLT_ODT: 
+    debug("caml_oci_bind_by_pos: should use oci_bind_date_by_pos() for dates");
+    break;
+  case SQLT_INT:
+    break;
+  case SQLT_FLT:
     break;
   default:
-    debug("caml_oci_bind_by_any: should never see a bindtype not 0 (pos) or 1 (name)");
+    debug("oci_bind_by_pos: unexpected datatype");
   }
 
   if (x != OCI_SUCCESS) {

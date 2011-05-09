@@ -7,10 +7,11 @@ open Printf
 let () =
   try 
     oradebug := true;
-    let lda = oralogon "gaius/abc123" in
+    let lda = oralogon "guy/abc123" in
     let sth = oraopen lda in
-    oraparse sth "insert into t2 values (:1)";
-    orabind sth (Pos 1) (Varchar "hello");
+    oraparse sth "insert into t1 values (:1, :2)";
+    orabind sth (Pos 1) (Datetime (localtime (time ())));
+    orabind sth (Pos 2) (Varchar "hello!");
     oraexec sth;
     oracommit lda;
     oraclose sth;
