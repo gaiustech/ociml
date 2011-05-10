@@ -188,7 +188,7 @@ value caml_oci_bind_by_pos(value handles, value stmt, value bindh, value posandt
     x = OCIBindByPos(s, &bh, h.err, (ub4)p, (dvoid*)ptr, (sb4)l, SQLT_CHR, 0, 0, 0, 0, 0, OCI_DEFAULT);
     break;
   case SQLT_ODT: 
-    debug("caml_oci_bind_by_pos: should use oci_bind_date_by_pos() for dates");
+    debug("caml_oci_bind_by_pos: should use caml_oci_bind_date_by_pos() for dates");
     break;
   case SQLT_INT: 
     c.i = Int_val(Field(colval,0)); 
@@ -205,7 +205,7 @@ value caml_oci_bind_by_pos(value handles, value stmt, value bindh, value posandt
   default:
     debug("oci_bind_by_pos: unexpected datatype");
   }
-  debug("out of switch");
+
   if (x != OCI_SUCCESS) {
     oci_non_success(h);
   }
@@ -273,7 +273,7 @@ value caml_oci_bind_by_name(value handles, value stmt, value bindh, value posand
     x = OCIBindByName(s, &bh, h.err, (text*)n, (sb4)strlen((char*)n), (dvoid*)ptr, (sb4)l, SQLT_CHR, 0, 0, 0, 0, 0, OCI_DEFAULT);
     break;
   case SQLT_ODT: 
-    debug("caml_oci_bind_by_pos: should use oci_bind_date_by_pos() for dates");
+    debug("caml_oci_bind_by_pos: should use caml_oci_bind_date_by_name() for dates");
     break;
   case SQLT_INT: 
     c.i = Int_val(Field(colval,0)); 
@@ -288,9 +288,9 @@ value caml_oci_bind_by_name(value handles, value stmt, value bindh, value posand
     x = OCIBindByName(s, &bh, h.err, (text*)n, (sb4)strlen((char*)n), (dvoid*)ptr, (sb4) sizeof(double), SQLT_FLT, 0, 0, 0, 0, 0, OCI_DEFAULT);
     break;
   default:
-    debug("oci_bind_by_pos: unexpected datatype");
+    debug("caml_oci_bind_by_pos: unexpected datatype");
   }
-  debug("out of switch");
+
   if (x != OCI_SUCCESS) {
     oci_non_success(h);
   }

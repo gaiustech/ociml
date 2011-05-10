@@ -1,23 +1,29 @@
-OCI*ML 0.1
+(* OCI*ML 0.1 *)
 
 A simple Oracle API for OCaml. See blog for latest: http://gaiustech.wordpress.com 
 
-*** If you are reading this on GitHub then the most-stable version will be in the .tgz ***
+*** If you are reading this on GitHub then the most-usable version will be in the 
+    .tgz so just download that to get started ***
 
 Developed on OCaml 3.11 and Oracle 10g and 11g on Debian Squeeze with GCC 4. 
 Requires an Oracle client installation to build and at least instantclient to 
-operate.  
+operate. Pure C so no issues with incompatible C++ libraries. 
 
-Installation instructions:
+Instructions:
 
 # make
-# make install
-# ./ociml_sample # to run the sample code - read this too
+
+install ociml_test.sql and edit ociml_sample.ml with your login credentials.
+
+# ./ociml_sample
 
 Currently only the basic DML operations (parse, bind, execute and fetch) are 
 available, in addition to connection and transaction control. This is sufficient 
 to connect to Oracle and run any SQL statements, returning the result set to 
-OCaml code for further processing. Additional features will be added as needed.
+OCaml code for further processing. See the file ociml_sample.ml for further
+details. It is assumed that you are basically familiar with Oracle and are
+looking for a way to get "real work" done in OCaml as an alternative to say 
+Perl.
 
 The library is structured as a thin wrapper around the OCI[1] library in C, on 
 top of which is a higher level library patterned after OraTcl[2], as much as 
@@ -25,13 +31,21 @@ possible the commands do the same things, but usually with fewer options. The
 OCaml debug log can be enabled in the application, but C debugging requires 
 #define'ing DEBUG and rebuilding. Debug messages from C are tagged {C}. It is
 intended that a user of OCI*ML should never need to worry about the C layer.
+Debug messages go to STDERR so that can be redirected e.g. $ ./myapp 2>log
+
+TODO (in no particular order):
+	- AQ enqueue and (blocking) dequeue
+	- LOBs
+	- reconnection callback
+	- RETURNING clause / OUT parameters for stored procedures
+	- bulk operations
+	- "make install" target that plays nicely with ocamlfind
 
 BSD license applies, see file LICENSE included with this distribution.
 
 Inspired by Oracaml[3]
 
 Questions, comments, suggestions etc to ociml@gaius.org.uk.
-
 
 [1] http://download.oracle.com/docs/cd/B28359_01/appdev.111/b28395/toc.htm
 [2] http://oratcl.sourceforge.net/manpage.html

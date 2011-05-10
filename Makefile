@@ -9,7 +9,7 @@ sample:	$(MLOBJS) $(COBJS) ociml_sample.ml
 	ocamlfind ocamlc -g -custom -o ociml_sample $(CCLIBS) unix.cma $(MLOBJS) ociml_sample.ml $(COBJS) 
 
 clean:
-	rm -f ociml ociml_sample *.cmi *.o *.cmo *~
+	rm -f ociml ociml_sample *.cmi *.o *.cmo *~ *.tgz
 
 ociml.cmo:	ociml.ml oci_wrapper.cmi
 	ocamlc -c -g ociml.ml

@@ -24,7 +24,7 @@ void epoch_to_ocidate(double d, OCIDate* ocidate) {
 #endif
 
   OCIDateSetDate(ocidate, ut->tm_year + 1900, ut->tm_mon + 1, ut->tm_mday); 
-  OCIDateSetTime(ocidate, ut->tm_hour + 1, ut->tm_min + 1, ut->tm_sec + 1);
+  OCIDateSetTime(ocidate, ut->tm_hour + 1, ut->tm_min, ut->tm_sec + 1);
 }
 
 /* end of file */

@@ -59,19 +59,19 @@ external oci_server_detach: oci_handles -> unit = "caml_oci_server_detach"
 external oci_free_handles: oci_handles -> unit = "caml_oci_free_handles"
 external oci_terminate: oci_env -> unit = "caml_oci_terminate" (* final cleanup *)
 
-(* transaction control - oci_query.c *)
+(* transaction control - oci_dml.c *)
 external oci_commit: oci_handles -> unit = "caml_oci_commit"
 external oci_rollback: oci_handles -> unit = "caml_oci_rollback"
 
-(* statement handles - oci_query.c *)
+(* statement handles - oci_dml.c *)
 external oci_alloc_statement: oci_env -> oci_statement = "caml_oci_stmt_alloc"
 external oci_free_statement: oci_statement -> unit = "caml_oci_stmt_free"
 
-(* basic DML - oci_query.c *)
+(* basic DML - oci_dml.c *)
 external oci_statement_prepare: oci_handles -> oci_statement -> string -> unit = "caml_oci_stmt_prepare"
 external oci_statement_execute: oci_handles -> oci_statement -> bool -> unit = "caml_oci_stmt_execute"
 
-(* binding - oci_query.c *)
+(* binding - oci_dml.c *)
 external oci_alloc_bindhandle: unit -> oci_bindhandle = "caml_oci_alloc_bindhandle"
 external oci_bind_by_pos: oci_handles -> oci_statement -> oci_bindhandle -> (int * int) -> col_value -> oci_ptr = "caml_oci_bind_by_pos" 
 external oci_bind_date_by_pos: oci_handles -> oci_statement -> oci_bindhandle -> int -> float -> oci_ptr = "caml_oci_bind_date_by_pos"
@@ -118,7 +118,7 @@ let oci_sqlt_flt                = 4   (* floating point number *)
 let oradebug = ref false
 let debug msg = match !oradebug with |true -> log_message msg |false -> ()
 
-(* autocommit mode *)
+(* autocommit mode - default false *)
 let oraautocom = ref false
 
 (* for exceptions thrown back by the C code, I generally intend that OCI itself 
@@ -193,7 +193,13 @@ let oraexec sth =
   sth.sth_op_time <- t2;
   ()
 
-(* quick convenient method for just running one SQL statement *)
+(* quick convenient function for binding an array of col_values to an sth and executing *)
+let orabindexec sth cva = 
+  Array.iteri (fun i v -> orabind sth (Pos (i + 1)) v) cva;
+  oraexec sth;
+  ()
+
+(* quick convenient function for just running one SQL statement *)
 let orasql sth sqltext =
   oraparse sth sqltext;
   oraexec sth;
