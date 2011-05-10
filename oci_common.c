@@ -18,6 +18,7 @@ void debug(char* msg) {
   time_t t = time(NULL);
   strftime(datebuf, 31, "%a %b %e %T %Y", (gmtime(&t)));
   fprintf(stderr, "%s: %s {C}\n", datebuf, msg);
+  fflush(stderr);
 }
 
 /* kick an error back into OCaml-land */

@@ -1,15 +1,15 @@
 # Makefile for OCI*ML project
 
 CCFLAGS	= -ccopt -I/usr/lib/ocaml -ccopt -I$(ORACLE_HOME)/rdbms/public -ccopt -Wall
-COBJS	= oci_common.o oci_connect.o oci_types.o oci_query.o
+COBJS	= oci_common.o oci_connect.o oci_types.o oci_dml.o oci_select.o
 MLOBJS	= log_message.cmo report.cmo ociml.cmo
 CCLIBS  = -cclib -L$(ORACLE_HOME)/lib -cclib -locci -cclib -lclntsh
 
-shell:	$(MLOBJS) $(COBJS) ociml_shell.ml
-	ocamlfind ocamlc -g -custom -o ociml_shell $(CCLIBS) unix.cma $(MLOBJS) ociml_shell.ml $(COBJS) 
+sample:	$(MLOBJS) $(COBJS) ociml_sample.ml
+	ocamlfind ocamlc -g -custom -o ociml_sample $(CCLIBS) unix.cma $(MLOBJS) ociml_sample.ml $(COBJS) 
 
 clean:
-	rm -f ociml ociml_shell *.cmi *.o *.cmo *~
+	rm -f ociml ociml_sample *.cmi *.o *.cmo *~
 
 ociml.cmo:	ociml.ml oci_wrapper.cmi
 	ocamlc -c -g ociml.ml

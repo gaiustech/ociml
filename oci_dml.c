@@ -1,4 +1,4 @@
-/* function related to actually executing SQL */
+/* function related to parsing, binding and executing SQL */
 
 #include <caml/mlvalues.h>
 #include <caml/memory.h>
@@ -38,12 +38,21 @@ else {
 }
 
 /* execute an already-prepared statement - throws ORA-24337 if not prepared */
-value caml_oci_stmt_execute(value handles, value stmt) {
-  CAMLparam2(handles, stmt);
+value caml_oci_stmt_execute(value handles, value stmt, value autocommit) {
+  CAMLparam3(handles, stmt, autocommit);
   oci_handles_t h = Oci_handles_val(handles);
   OCIStmt* sth = Oci_statement_val(stmt);
+  int ac = Bool_val(autocommit);
+  sword x;
 
-  sword x = OCIStmtExecute(h.svc, sth, h.err, 1,  0, (CONST OCISnapshot*) NULL, (OCISnapshot*) NULL, OCI_DEFAULT);
+  if (!ac) {
+    x = OCIStmtExecute(h.svc, sth, h.err, 1,  0, (CONST OCISnapshot*) NULL, (OCISnapshot*) NULL, OCI_DEFAULT);
+  } else {
+    x = OCIStmtExecute(h.svc, sth, h.err, 1,  0, (CONST OCISnapshot*) NULL, (OCISnapshot*) NULL, OCI_COMMIT_ON_SUCCESS);
+#ifdef DEBUG
+    debug("caml_oci_stmt_execute: autocommit is ON");
+#endif
+  }
   if (x != OCI_SUCCESS) {
     oci_non_success(h);
   }
@@ -139,7 +148,7 @@ value caml_oci_bind_date_by_pos(value handles, value stmt, value bindh, value po
    if (x != OCI_SUCCESS) {
     oci_non_success(h);
   }
-   return (value)od2;  /* I am assuming the OCaml GC will just take care of this... */
+   CAMLreturn((value)od2);  /* I am assuming the OCaml GC will just take care of this... */
 }
 
 /* bind colval at position pos using bind handle bh in statement stmt OR to named parameter name depending on bindtype */
@@ -165,30 +174,128 @@ value caml_oci_bind_by_pos(value handles, value stmt, value bindh, value posandt
     int i;
     double f;
   } c;
-
+  
   sword x;
-
+  void* ptr;
+  
   switch (dt) {
   case SQLT_STR:
     c.c = String_val(Field(colval,0));
-    x = OCIBindByPos(s, &bh, h.err, (ub4)p, (dvoid*)c.c, (sb4) strlen(c.c), SQLT_CHR, 0, 0, 0, 0, 0, OCI_DEFAULT);
+    int l = strlen(c.c); 
+    ptr = (char*)malloc(l+1);
+    strncpy(ptr, c.c, l);
+
+    x = OCIBindByPos(s, &bh, h.err, (ub4)p, (dvoid*)ptr, (sb4)l, SQLT_CHR, 0, 0, 0, 0, 0, OCI_DEFAULT);
     break;
   case SQLT_ODT: 
     debug("caml_oci_bind_by_pos: should use oci_bind_date_by_pos() for dates");
     break;
-  case SQLT_INT:
+  case SQLT_INT: 
+    c.i = Int_val(Field(colval,0)); 
+    ptr = (int*)malloc(sizeof(int)); 
+    memcpy(ptr, &c.i, sizeof(int));  
+    x = OCIBindByPos(s, &bh, h.err, (ub4)p, (dvoid*)ptr, (sb4) sizeof(int), SQLT_INT, 0, 0, 0, 0, 0, OCI_DEFAULT); 
     break;
   case SQLT_FLT:
+    c.f = Double_val(Field(colval, 0));
+    ptr = (double*)malloc(sizeof(double));
+    memcpy(ptr, &c.f, sizeof(double));
+    x = OCIBindByPos(s, &bh, h.err, (ub4)p, (dvoid*)ptr, (sb4) sizeof(double), SQLT_FLT, 0, 0, 0, 0, 0, OCI_DEFAULT);
     break;
   default:
     debug("oci_bind_by_pos: unexpected datatype");
   }
-
+  debug("out of switch");
   if (x != OCI_SUCCESS) {
     oci_non_success(h);
   }
   
-  CAMLreturn(Val_unit);
+  CAMLreturn((value)ptr);
+}
+
+
+/* same again but by name */
+value caml_oci_bind_date_by_name(value handles, value stmt, value bindh, value name, value colval) {
+  CAMLparam5(handles, stmt, bindh, name, colval);
+  oci_handles_t h = Oci_handles_val(handles);
+  OCIStmt* s = Oci_statement_val(stmt);
+  OCIBind* bh = Oci_bindhandle_val(bindh);
+  char* n = String_val(name);
+  double epoch = Double_val(colval); /* datetime is epoch at this point - must convert to Oracle */
+
+  OCIDate ocidate;
+  epoch_to_ocidate(epoch, &ocidate);
+  /* allocate a new OCIDate on the heap and copy onto it */
+  OCIDate* od2 = (OCIDate*)malloc(sizeof(OCIDate));
+  memcpy(od2, &ocidate, sizeof(OCIDate));
+
+  sword x = OCIBindByName(s, &bh, h.err, (text*)n, (sb4)strlen((char*)n),(dvoid*)od2, (sb4)sizeof(OCIDate), SQLT_ODT, 0, 0, 0, 0, 0, OCI_DEFAULT);
+   if (x != OCI_SUCCESS) {
+    oci_non_success(h);
+  }
+   CAMLreturn((value)od2);  /* I am assuming the OCaml GC will just take care of this... */
+}
+
+/* bind colval at position pos using bind handle bh in statement stmt OR to named parameter name depending on bindtype */
+value caml_oci_bind_by_name(value handles, value stmt, value bindh, value posandtype, value colval) {
+#ifdef DEBUG
+  debug("caml_oci_bind_by_name: entered");
+#endif
+  CAMLparam5(handles, stmt, bindh, posandtype, colval);
+
+  int dt = Int_val(Field(posandtype, 1));
+  char* n = String_val(Field(posandtype, 0));
+#ifdef DEBUG
+  char dbuf[256]; snprintf(dbuf, 255, "binding datatype %d to position '%s'", dt, n); debug(dbuf);
+#endif
+
+  oci_handles_t h = Oci_handles_val(handles);
+  OCIStmt* s = Oci_statement_val(stmt);
+  OCIBind* bh = Oci_bindhandle_val(bindh);
+
+  /* annoyingly can't create a local var immediately after a case in GCC - http://gcc.gnu.org/bugzilla/show_bug.cgi?id=37231  */
+  union cv_t {
+    char* c;
+    int i;
+    double f;
+  } c;
+  
+  sword x;
+  void* ptr;
+  
+  switch (dt) {
+  case SQLT_STR:
+    c.c = String_val(Field(colval,0));
+    int l = strlen(c.c); 
+    ptr = (char*)malloc(l+1);
+    strncpy(ptr, c.c, l);
+
+    x = OCIBindByName(s, &bh, h.err, (text*)n, (sb4)strlen((char*)n), (dvoid*)ptr, (sb4)l, SQLT_CHR, 0, 0, 0, 0, 0, OCI_DEFAULT);
+    break;
+  case SQLT_ODT: 
+    debug("caml_oci_bind_by_pos: should use oci_bind_date_by_pos() for dates");
+    break;
+  case SQLT_INT: 
+    c.i = Int_val(Field(colval,0)); 
+    ptr = (int*)malloc(sizeof(int)); 
+    memcpy(ptr, &c.i, sizeof(int));  
+    x = OCIBindByName(s, &bh, h.err, (text*)n, (sb4)strlen((char*)n), (dvoid*)ptr, (sb4) sizeof(int), SQLT_INT, 0, 0, 0, 0, 0, OCI_DEFAULT); 
+    break;
+  case SQLT_FLT:
+    c.f = Double_val(Field(colval, 0));
+    ptr = (double*)malloc(sizeof(double));
+    memcpy(ptr, &c.f, sizeof(double));
+    x = OCIBindByName(s, &bh, h.err, (text*)n, (sb4)strlen((char*)n), (dvoid*)ptr, (sb4) sizeof(double), SQLT_FLT, 0, 0, 0, 0, 0, OCI_DEFAULT);
+    break;
+  default:
+    debug("oci_bind_by_pos: unexpected datatype");
+  }
+  debug("out of switch");
+  if (x != OCI_SUCCESS) {
+    oci_non_success(h);
+  }
+  
+  CAMLreturn((value)ptr);
 }
 
  

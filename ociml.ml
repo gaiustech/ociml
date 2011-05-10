@@ -13,7 +13,7 @@ type oci_env (* global OCI environment *)
 type oci_handles (* C struct that bundles error, server, service context and session handles *)
 type oci_statement (* statement handle *)
 type oci_bindhandle (* for binding in prepared statements *)
-type oci_date 
+type oci_ptr (* void* pointer so we can heap alloc for binding *)
 type oci_resultset 
 
 (* data structure for use within the library bundling all the handles associated 
@@ -39,8 +39,9 @@ type meta_statement = {statement_id:int;
 		       mutable binds:int;
 		       mutable execs:int;
 		       mutable sth_op_time:float;
+		       mutable rows_affected:int;
 		       mutable bound_vals:(bind_spec, oci_bindhandle) Hashtbl.t;
-		       mutable ocidates:(bind_spec, oci_date) Hashtbl.t;
+		       mutable oci_ptrs:(bind_spec, oci_ptr) Hashtbl.t;
 		       parent_lda:meta_handle; 
 		       sth:oci_statement}
 
@@ -68,27 +69,31 @@ external oci_free_statement: oci_statement -> unit = "caml_oci_stmt_free"
 
 (* basic DML - oci_query.c *)
 external oci_statement_prepare: oci_handles -> oci_statement -> string -> unit = "caml_oci_stmt_prepare"
-external oci_statement_execute: oci_handles -> oci_statement -> unit = "caml_oci_stmt_execute"
+external oci_statement_execute: oci_handles -> oci_statement -> bool -> unit = "caml_oci_stmt_execute"
 
 (* binding - oci_query.c *)
 external oci_alloc_bindhandle: unit -> oci_bindhandle = "caml_oci_alloc_bindhandle"
-external oci_bind_by_pos: oci_handles -> oci_statement -> oci_bindhandle -> (int * int) -> col_value -> unit = "caml_oci_bind_by_pos" 
-external oci_bind_date_by_pos: oci_handles -> oci_statement -> oci_bindhandle -> int -> float -> oci_date = "caml_oci_bind_date_by_pos" 
+external oci_bind_by_pos: oci_handles -> oci_statement -> oci_bindhandle -> (int * int) -> col_value -> oci_ptr = "caml_oci_bind_by_pos" 
+external oci_bind_date_by_pos: oci_handles -> oci_statement -> oci_bindhandle -> int -> float -> oci_ptr = "caml_oci_bind_date_by_pos"
+external oci_bind_by_name: oci_handles -> oci_statement -> oci_bindhandle -> (string * int) -> col_value -> oci_ptr = "caml_oci_bind_by_name" 
+external oci_bind_date_by_name: oci_handles -> oci_statement -> oci_bindhandle -> string -> float -> oci_ptr = "caml_oci_bind_date_by_name" 
 
 (* public interface - open Oci_wrapper for direct access to the low-level 
    functions - should not be necessary for day-to-day work *)
 module type OCIML =
 sig
-  val oralogon:  string -> meta_handle
-  val oralogoff: meta_handle -> unit
-  val oracommit: meta_handle -> unit
-  val oraroll:   meta_handle -> unit
-  val oraopen:   meta_handle -> meta_statement
-  val oraclose:  meta_statement -> unit
-  val oraparse:  meta_statement -> string -> unit
-  val oraexec:   meta_statement -> unit
-  val orabind:   meta_statement -> bind_spec -> col_value -> unit
-  val oradebug:  bool
+  val oralogon:     string -> meta_handle
+  val oralogoff:    meta_handle -> unit
+  val oracommit:    meta_handle -> unit
+  val oraroll:      meta_handle -> unit
+  val oraopen:      meta_handle -> meta_statement
+  val oraclose:     meta_statement -> unit
+  val oraparse:     meta_statement -> string -> unit
+  val oraexec:      meta_statement -> unit
+  val orabind:      meta_statement -> bind_spec -> col_value -> unit
+  val oradebug:     bool
+  val orasql:       meta_statement -> string -> unit
+  val oraautocom:   bool
 end
 
 let handle_seq = ref 0 (* unique ids for handles *)
@@ -99,18 +104,22 @@ let oci_attr_username           =  22
 let oci_attr_password           =  23 
 let oci_attr_client_identifier  = 278 
 let oci_attr_client_info        = 368 
-let oci_attr_module             = 366 
+let oci_attr_module             = 366
+let oci_attr_rows_fetched       = 197
 
 (* various constants from ocidfn.h *)
-let oci_sqlt_odt                = 156
-let oci_sqlt_str                = 5
-let oci_sqlt_int                = 3
-let oci_sqlt_flt                = 4
+let oci_sqlt_odt                = 156 (* OCIDate object *)
+let oci_sqlt_str                = 5   (* zero-terminated string *)
+let oci_sqlt_int                = 3   (* integer *)
+let oci_sqlt_flt                = 4   (* floating point number *)
 
 (* write a timestamped log message (log messages from the C code are tagged {C} 
    so anything else is from the ML. This can be set from the application.  *)
 let oradebug = ref false
 let debug msg = match !oradebug with |true -> log_message msg |false -> ()
+
+(* autocommit mode *)
+let oraautocom = ref false
 
 (* for exceptions thrown back by the C code, I generally intend that OCI itself 
    does the bulk of the error checking *)
@@ -138,14 +147,24 @@ let orabind sth bs cv =
     with Not_found -> let bh = oci_alloc_bindhandle () in
 		      Hashtbl.add sth.bound_vals bs bh; 
 		      bh ) in
+  (* note that we are maintaining pointers to the bindhandle *and* the bound value, so they can be heap-allocated and GC'd later *)
   (match bs with
     |Pos p -> (match cv with
-	|Datetime x -> (Hashtbl.replace sth.ocidates bs (oci_bind_date_by_pos sth.parent_lda.lda sth.sth bh p (date_to_double x)))
-	|Varchar x  -> oci_bind_by_pos sth.parent_lda.lda sth.sth bh (p, oci_sqlt_str) (Varchar x)                 
-	|Integer x  -> oci_bind_by_pos sth.parent_lda.lda sth.sth bh (p, oci_sqlt_int) (Integer x)
-	|Number x   -> oci_bind_by_pos sth.parent_lda.lda sth.sth bh (p, oci_sqlt_flt) (Number x)
+	|Datetime x -> (Hashtbl.replace sth.oci_ptrs bs (oci_bind_date_by_pos sth.parent_lda.lda sth.sth bh p (date_to_double x)))
+	|Varchar _  -> (Hashtbl.replace sth.oci_ptrs bs (oci_bind_by_pos sth.parent_lda.lda sth.sth bh (p, oci_sqlt_str) cv))
+	|Integer _  -> (Hashtbl.replace sth.oci_ptrs bs (oci_bind_by_pos sth.parent_lda.lda sth.sth bh (p, oci_sqlt_int) cv))
+	|Number _   -> (Hashtbl.replace sth.oci_ptrs bs (oci_bind_by_pos sth.parent_lda.lda sth.sth bh (p, oci_sqlt_flt) cv))
     )
-    |Name n -> () (* not implemented yet *)
+    |Name n -> ( 
+      let n = match (String.sub n 0 1) with 
+	|":" -> n
+	|_   -> (sprintf ":%s" n) in
+      match cv with
+	|Datetime x -> (Hashtbl.replace sth.oci_ptrs bs (oci_bind_date_by_name sth.parent_lda.lda sth.sth bh n (date_to_double x)))
+	|Varchar _  -> (Hashtbl.replace sth.oci_ptrs bs (oci_bind_by_name sth.parent_lda.lda sth.sth bh (n, oci_sqlt_str) cv))
+	|Integer _  -> (Hashtbl.replace sth.oci_ptrs bs (oci_bind_by_name sth.parent_lda.lda sth.sth bh (n, oci_sqlt_int) cv))
+	|Number _   -> (Hashtbl.replace sth.oci_ptrs bs (oci_bind_by_name sth.parent_lda.lda sth.sth bh (n, oci_sqlt_flt) cv))
+    )
   );
   sth.binds <- (sth.binds +1);
   ()
@@ -167,11 +186,17 @@ let oraparse sth sqltext =
    statement is parsed will also result in an exception being thrown *)
 let oraexec sth =
   let t1 = Sys.time () in
-  oci_statement_execute sth.parent_lda.lda sth.sth;
+  oci_statement_execute sth.parent_lda.lda sth.sth !oraautocom;
   let t2 = Sys.time () -. t1 in
   debug (sprintf "statement handle %d executed in %fs" sth.statement_id t2);
   sth.execs <- (sth.execs + 1);
   sth.sth_op_time <- t2;
+  ()
+
+(* quick convenient method for just running one SQL statement *)
+let orasql sth sqltext =
+  oraparse sth sqltext;
+  oraexec sth;
   ()
 
 let oraclose sth = 
@@ -187,7 +212,7 @@ let oraopen lda =
   statement_seq := (!statement_seq + 1);
   let c = !statement_seq in
   debug (sprintf "allocated statement id %d on connection id %d" c lda.connection_id);
-  {statement_id=c; parses=0; binds=0; execs=0; sth_op_time=0.0; bound_vals=(Hashtbl.create 10); ocidates=(Hashtbl.create 10); parent_lda=lda; sth=s}
+  {statement_id=c; parses=0; binds=0; execs=0; sth_op_time=0.0; rows_affected=0; bound_vals=(Hashtbl.create 10); oci_ptrs=(Hashtbl.create 10); parent_lda=lda; sth=s}
 
 (* connect to Oracle, connstr in format "user/pass@db" or "user/pass" like OraTcl *)
 let oralogon connstr = 
@@ -224,7 +249,7 @@ let oracommit lda =
 let oraroll lda = 
   oci_rollback lda.lda;
   lda.rollbacks <- (lda.rollbacks + 1);
-  debug (sprintf "connection id %d rolled back transaction, %d rollbacks" lda.connection_id lda.rollbacks);
+  debug (sprintf "connection id %d rolled back transaction, %d rollbacks in this session" lda.connection_id lda.rollbacks);
   ()
 
 (* End of file *)
