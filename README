@@ -3,11 +3,15 @@
 A simple Oracle API for OCaml. See blog for latest: http://gaiustech.wordpress.com 
 
 *** If you are reading this on GitHub then the most-usable version will be in the 
-    .tgz so just download that to get started ***
+    .tgz so just download that to get started. Then read this file in there.  ***
+
+Please read the file LICENSE and ensure that you are happy with it before
+continuing. 
 
 Developed on OCaml 3.11 and Oracle 10g and 11g on Debian Squeeze with GCC 4. 
 Requires an Oracle client installation to build and at least instantclient to 
-operate. Pure C so no issues with incompatible C++ libraries. 
+operate. Pure C so no issues with incompatible C++ libraries. Binaries built
+with this library have been run on RHEL 5 with no issues.
 
 Instructions:
 
@@ -33,6 +37,11 @@ OCaml debug log can be enabled in the application, but C debugging requires
 intended that a user of OCI*ML should never need to worry about the C layer.
 Debug messages go to STDERR so that can be redirected e.g. $ ./myapp 2>log
 
+An error loading shared libraries is probably either because LD_LIBRARY_PATH 
+doesn't contain $ORACLE_HOME/lib OR you are running code compiled against 11g
+on a 10g system (vice versa should work). A fatal error on startup is probably 
+because ORACLE_HOME isn't set (correctly). 
+
 TODO (in no particular order):
 	- AQ enqueue and (blocking) dequeue
 	- LOBs
@@ -40,8 +49,6 @@ TODO (in no particular order):
 	- RETURNING clause / OUT parameters for stored procedures
 	- bulk operations
 	- "make install" target that plays nicely with ocamlfind
-
-BSD license applies, see file LICENSE included with this distribution.
 
 Inspired by Oracaml[3]
 

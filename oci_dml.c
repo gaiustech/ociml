@@ -38,21 +38,30 @@ else {
 }
 
 /* execute an already-prepared statement - throws ORA-24337 if not prepared */
-value caml_oci_stmt_execute(value handles, value stmt, value autocommit) {
-  CAMLparam3(handles, stmt, autocommit);
+value caml_oci_stmt_execute(value handles, value stmt, value autocommit, value desconly) {
+  CAMLparam4(handles, stmt, autocommit, desconly);
   oci_handles_t h = Oci_handles_val(handles);
   OCIStmt* sth = Oci_statement_val(stmt);
   int ac = Bool_val(autocommit);
+  int d = Bool_val(desconly);
   sword x;
 
-  if (!ac) {
-    x = OCIStmtExecute(h.svc, sth, h.err, 1,  0, (CONST OCISnapshot*) NULL, (OCISnapshot*) NULL, OCI_DEFAULT);
-  } else {
-    x = OCIStmtExecute(h.svc, sth, h.err, 1,  0, (CONST OCISnapshot*) NULL, (OCISnapshot*) NULL, OCI_COMMIT_ON_SUCCESS);
+  if (d) { /* implicit describe, but do not run query */
+    x = OCIStmtExecute(h.svc, sth, h.err, 1,  0, (CONST OCISnapshot*) NULL, (OCISnapshot*) NULL, OCI_DESCRIBE_ONLY);
 #ifdef DEBUG
-    debug("caml_oci_stmt_execute: autocommit is ON");
+      debug("caml_oci_stmt_execute: described only");
 #endif
+  } else {
+    if (!ac) { /* run query normally */
+      x = OCIStmtExecute(h.svc, sth, h.err, 1,  0, (CONST OCISnapshot*) NULL, (OCISnapshot*) NULL, OCI_DEFAULT);
+    } else { /* run query and commit immediately */
+      x = OCIStmtExecute(h.svc, sth, h.err, 1,  0, (CONST OCISnapshot*) NULL, (OCISnapshot*) NULL, OCI_COMMIT_ON_SUCCESS);
+#ifdef DEBUG
+      debug("caml_oci_stmt_execute: autocommit is ON");
+#endif
+    }
   }
+    
   if (x != OCI_SUCCESS) {
     oci_non_success(h);
   }

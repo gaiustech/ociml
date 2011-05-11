@@ -3,7 +3,6 @@
 open Unix
 open Printf
 open Scanf
-open Oci_wrapper
 open Log_message
 
 (* Fairly thin wrapper around low-level OCI functions, used to implement higher-level OCI*ML library *)
@@ -45,6 +44,7 @@ type meta_statement = {statement_id:int;
 		       parent_lda:meta_handle; 
 		       sth:oci_statement}
 
+
 (* setup functions, in order in which they should be called - oci_connect.c *)
 external oci_env_create: unit -> oci_env = "caml_oci_env_create"
 external oci_alloc_handles: oci_env -> oci_handles = "caml_oci_alloc_handles"
@@ -69,7 +69,7 @@ external oci_free_statement: oci_statement -> unit = "caml_oci_stmt_free"
 
 (* basic DML - oci_dml.c *)
 external oci_statement_prepare: oci_handles -> oci_statement -> string -> unit = "caml_oci_stmt_prepare"
-external oci_statement_execute: oci_handles -> oci_statement -> bool -> unit = "caml_oci_stmt_execute"
+external oci_statement_execute: oci_handles -> oci_statement -> bool -> bool -> unit = "caml_oci_stmt_execute" (* AUTOCOMMIT and DESCRIBE_ONLY *)
 
 (* binding - oci_dml.c *)
 external oci_alloc_bindhandle: unit -> oci_bindhandle = "caml_oci_alloc_bindhandle"
@@ -78,8 +78,10 @@ external oci_bind_date_by_pos: oci_handles -> oci_statement -> oci_bindhandle ->
 external oci_bind_by_name: oci_handles -> oci_statement -> oci_bindhandle -> (string * int) -> col_value -> oci_ptr = "caml_oci_bind_by_name" 
 external oci_bind_date_by_name: oci_handles -> oci_statement -> oci_bindhandle -> string -> float -> oci_ptr = "caml_oci_bind_date_by_name" 
 
-(* public interface - open Oci_wrapper for direct access to the low-level 
-   functions - should not be necessary for day-to-day work *)
+(* fetching - oci_select.c *)
+external oci_get_column_names: oci_handles -> oci_statement -> string array = "caml_oci_get_column_names"
+
+(* public interface *)
 module type OCIML =
 sig
   val oralogon:     string -> meta_handle
@@ -94,7 +96,13 @@ sig
   val oradebug:     bool
   val orasql:       meta_statement -> string -> unit
   val oraautocom:   bool
+  val orabindexec:  meta_statement -> col_value array -> unit
+  val orastring:    col_value -> string
+  val oradesc:      meta_handle -> string -> string array
+  val oracols:      meta_statement -> string array
 end
+
+(* actual implementation *)
 
 let handle_seq = ref 0 (* unique ids for handles *)
 let statement_seq = ref 0 (* unique ids for statements *)
@@ -172,9 +180,9 @@ let orabind sth bs cv =
 (* parse a SQL statement - note that this does *not* validate the SQL in any way,
    it simply sets it in the statement handle's context *)
 let oraparse sth sqltext =
-  let t1 = Sys.time () in
+  let t1 = gettimeofday () in
   oci_statement_prepare sth.parent_lda.lda sth.sth sqltext;
-  let t2 = Sys.time () -. t1 in
+  let t2 = gettimeofday () -. t1 in
   debug (sprintf "parsed sql \"%s\" on statement handle %d in %fs" sqltext sth.statement_id t2);
   sth.parses <- (sth.parses + 1);
   sth.sth_op_time <- t2;
@@ -185,9 +193,9 @@ let oraparse sth sqltext =
    an exception may be throw if the SQL is invalid. Calling this before the
    statement is parsed will also result in an exception being thrown *)
 let oraexec sth =
-  let t1 = Sys.time () in
-  oci_statement_execute sth.parent_lda.lda sth.sth !oraautocom;
-  let t2 = Sys.time () -. t1 in
+  let t1 = gettimeofday () in
+  oci_statement_execute sth.parent_lda.lda sth.sth !oraautocom false;
+  let t2 = gettimeofday () -. t1 in
   debug (sprintf "statement handle %d executed in %fs" sth.statement_id t2);
   sth.execs <- (sth.execs + 1);
   sth.sth_op_time <- t2;
@@ -222,7 +230,7 @@ let oraopen lda =
 
 (* connect to Oracle, connstr in format "user/pass@db" or "user/pass" like OraTcl *)
 let oralogon connstr = 
-  let t1 = Sys.time () in
+  let t1 = gettimeofday () in
   let h = oci_alloc_handles global_env in
   let parse_connect_string c = sscanf c "%s@/%s@@%s"(fun u p d -> (u, p, d)) in
   let (username, password, database) = parse_connect_string connstr in 
@@ -232,7 +240,7 @@ let oralogon connstr =
   oci_session_begin h;
   handle_seq := (!handle_seq + 1);
   let c = !handle_seq in 
-  let t2 = (Sys.time() -. t1) in
+  let t2 = (gettimeofday () -. t1) in
   debug (sprintf "established connection %d as %s@%s in %fs" c username database t2);
   {connection_id=c; commits=0; rollbacks=0; lda_op_time=t2; lda=h}
 
@@ -257,5 +265,24 @@ let oraroll lda =
   lda.rollbacks <- (lda.rollbacks + 1);
   debug (sprintf "connection id %d rolled back transaction, %d rollbacks in this session" lda.connection_id lda.rollbacks);
   ()
+
+(* convert a col value to a string for display *)
+let orastring cv = 
+  match cv with
+    |Varchar x  -> x
+    |Integer x  -> (sprintf "%d" x)
+    |Number x   -> (sprintf "%f" x)
+    |Datetime x -> let months = [|"JAN"; "FEB"; "MAR"; "APR"; "MAY"; "JUN"; "JUL"; "AUG"; "SEP"; "OCT"; "NOV"; "DEC"|] in
+		   (sprintf "%d-%s-%d %d:%d:%d" x.tm_mday months.(x.tm_mon) (x.tm_year+1900) x.tm_hour x.tm_min x.tm_sec)
+
+(* describe a table - column names only (for now!) - using the implicit describe method - also see implementation of oracols *)
+let oradesc lda tabname =
+  let sth = oraopen lda in
+  oci_statement_prepare sth.parent_lda.lda sth.sth (sprintf "select * from %s" tabname);
+  oci_statement_execute sth.parent_lda.lda sth.sth !oraautocom true; (* true - with OCI_DESCRIBE_ONLY set *)
+  oci_get_column_names lda.lda sth.sth 
+
+(* list of columns from last exec *)
+let oracols sth = oci_get_column_names sth.parent_lda.lda sth.sth
 
 (* End of file *)

@@ -11,7 +11,7 @@ sample:	$(MLOBJS) $(COBJS) ociml_sample.ml
 clean:
 	rm -f ociml ociml_sample *.cmi *.o *.cmo *~ *.tgz
 
-ociml.cmo:	ociml.ml oci_wrapper.cmi
+ociml.cmo:	ociml.ml
 	ocamlc -c -g ociml.ml
  
 %.cmo: %.ml

@@ -8,11 +8,10 @@
 
 open Ociml
 open Unix
-open Printf
 
 let () =
   try 
-    (* set debugging mode on *)
+    (* set debugging mode on - will go to stderr *)
     oradebug := true;
 
     (* connect to database - edit with your own username and password as appropriate *)
@@ -31,7 +30,7 @@ let () =
 
     (* set values for these variables by position *)
     orabind sth (Pos 1) (Integer 1);                      (* OCaml type int *)
-    orabind sth (Pos 2) (Datetime (localtime (time ()))); (* OCaml type Unix.tm *)
+    orabind sth (Pos 2) (Datetime (localtime (time ()))); (* OCaml type Unix.tm - down to seconds only, not millis *)
     orabind sth (Pos 3) (Varchar "hello!");               (* OCaml type string *)
     orabind sth (Pos 4) (Number 3.142);                   (* OCaml type float *)
 
@@ -51,8 +50,13 @@ let () =
     orabind sth (Name ":myfloat") (Number 2.718);
     oraexec sth;
     
-    (* Bind an array of values and execute *)
+    (* Bind an array of values and execute - still in autocommit mode *)
     orabindexec sth [|(Integer 3); (Datetime (localtime (time ()))); (Varchar "hello again..."); (Number 1.41)|];
+
+    (* describe the table *)
+    let tabname = "ociml_test" in 
+    let cols = oradesc lda tabname in
+    Printf.printf "Columns in %s are %s %s %s %s\n" tabname cols.(0) cols.(1) cols.(2) cols.(3);
 
     (* close the cursor *)
     oraclose sth;
@@ -62,6 +66,6 @@ let () =
 
   with 
       (* Errors emitted by the underling OCI library - e_code will be set to familiar ORA numbers *)
-      Oci_exception (e_code, e_desc) -> prerr_endline (sprintf "ociml_sample: %s " e_desc)
+      Oci_exception (e_code, e_desc) -> prerr_endline (Printf.sprintf "ociml_sample: %s " e_desc)
 
 (* end of file *)
