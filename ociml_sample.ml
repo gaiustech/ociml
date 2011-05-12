@@ -8,14 +8,18 @@
 
 open Ociml
 open Unix
+open Report
 
 let () =
   try 
     (* set debugging mode on - will go to stderr *)
-    oradebug := true;
+    oradebug true;
+
+    (* set the preferred value of NULL to an empty string *)
+    oranullval (Varchar "");
 
     (* connect to database - edit with your own username and password as appropriate *)
-    let lda = oralogon "guy/abc123" in
+    let lda = oralogon Sys.argv.(1) in
 
     (* open a new cursor/statement handle *)
     let sth = oraopen lda in
@@ -41,7 +45,7 @@ let () =
     oracommit lda;
 
     (* now set autocommit mode on *)
-    oraautocom := true;
+    oraautocom true;
 
     (* set values for these variables by name - note colon added automagically if missing *)
     orabind sth (Name "myint")    (Integer 2);
@@ -53,10 +57,23 @@ let () =
     (* Bind an array of values and execute - still in autocommit mode *)
     orabindexec sth [|(Integer 3); (Datetime (localtime (time ()))); (Varchar "hello again..."); (Number 1.41)|];
 
-    (* describe the table *)
+    (* describe the table - comes as array of name and type tuples - using my generic report formatter *)
+    let decode_bool x = 
+      match x with
+	|true  -> "YES"
+	|false -> "NO" in
+    let decode_col_type x =
+      match x with
+	|2  (* oci_sqlt_num *)    -> "NUMBER"
+	|12 (* oci_sqlt_dat *)    -> "DATE"
+	|1  (* oci_sqlt_chr *)    -> "VARCHAR2"
+	|_  (* something else! *) -> string_of_int x in
     let tabname = "ociml_test" in 
     let cols = oradesc lda tabname in
-    Printf.printf "Columns in %s are %s %s %s %s\n" tabname cols.(0) cols.(1) cols.(2) cols.(3);
+    let r = new report [|"Column name"; "Data type"; "Size"; "Is integer"; "NULL allowed"|] in
+    Array.iter (fun (col_name, col_type, col_size, is_integer, is_nullable) -> 
+    r#add_row [|col_name; (decode_col_type col_type); (string_of_int col_size); (decode_bool is_integer); (decode_bool is_nullable)|]) cols;
+    r#print_report ();
 
     (* close the cursor *)
     oraclose sth;

@@ -26,7 +26,10 @@ type meta_handle = {connection_id:int;
 (* Variant for the basic data types - datetime crosses back and forth as epoch, 
    and Oracle's NUMBER datatype of course can be either integer or floating 
    point but it doesn't make sense to make the OCaml layer deal only in floats *)
-type col_value = Varchar of string|Datetime of Unix.tm|Integer of int|Number of float
+type col_value = Varchar of string|Datetime of Unix.tm|Integer of int|Number of float|Null
+
+(* type for column metadata - name, type, size, is_integer, is_nullable *)
+type col_type = string * int * int * bool * bool
 
 (* variant enabling binding by position or by name *)
 type bind_spec = Pos of int|Name of string
@@ -39,8 +42,8 @@ type meta_statement = {statement_id:int;
 		       mutable execs:int;
 		       mutable sth_op_time:float;
 		       mutable rows_affected:int;
-		       mutable bound_vals:(bind_spec, oci_bindhandle) Hashtbl.t;
-		       mutable oci_ptrs:(bind_spec, oci_ptr) Hashtbl.t;
+		       bound_vals:(bind_spec, oci_bindhandle) Hashtbl.t;
+		       oci_ptrs:(bind_spec, oci_ptr) Hashtbl.t;
 		       parent_lda:meta_handle; 
 		       sth:oci_statement}
 
@@ -59,7 +62,7 @@ external oci_server_detach: oci_handles -> unit = "caml_oci_server_detach"
 external oci_free_handles: oci_handles -> unit = "caml_oci_free_handles"
 external oci_terminate: oci_env -> unit = "caml_oci_terminate" (* final cleanup *)
 
-(* transaction control - oci_dml.c *)
+(* transaction control commit/rollback - oci_dml.c *)
 external oci_commit: oci_handles -> unit = "caml_oci_commit"
 external oci_rollback: oci_handles -> unit = "caml_oci_rollback"
 
@@ -67,7 +70,7 @@ external oci_rollback: oci_handles -> unit = "caml_oci_rollback"
 external oci_alloc_statement: oci_env -> oci_statement = "caml_oci_stmt_alloc"
 external oci_free_statement: oci_statement -> unit = "caml_oci_stmt_free"
 
-(* basic DML - oci_dml.c *)
+(* basic DML (enough for orasql) - oci_dml.c *)
 external oci_statement_prepare: oci_handles -> oci_statement -> string -> unit = "caml_oci_stmt_prepare"
 external oci_statement_execute: oci_handles -> oci_statement -> bool -> bool -> unit = "caml_oci_stmt_execute" (* AUTOCOMMIT and DESCRIBE_ONLY *)
 
@@ -79,7 +82,26 @@ external oci_bind_by_name: oci_handles -> oci_statement -> oci_bindhandle -> (st
 external oci_bind_date_by_name: oci_handles -> oci_statement -> oci_bindhandle -> string -> float -> oci_ptr = "caml_oci_bind_date_by_name" 
 
 (* fetching - oci_select.c *)
-external oci_get_column_names: oci_handles -> oci_statement -> string array = "caml_oci_get_column_names"
+external oci_get_column_types: oci_handles -> oci_statement -> col_type array = "caml_oci_get_column_types"
+
+(* various constants from oci.h *)
+let oci_attr_username           =  22
+let oci_attr_password           =  23 
+let oci_attr_client_identifier  = 278 
+let oci_attr_client_info        = 368 
+let oci_attr_module             = 366
+let oci_attr_rows_fetched       = 197
+let oci_attr_prefetch_memory    = 13
+let oci_attr_param_count        = 18
+
+(* various constants from ocidfn.h *)
+let oci_sqlt_odt                = 156 (* OCIDate object *)
+let oci_sqlt_str                = 5   (* zero-terminated string *)
+let oci_sqlt_int                = 3   (* integer *)
+let oci_sqlt_flt                = 4   (* floating point number *)
+let oci_sqlt_num                = 2   (* ORANET numeric *)
+let oci_sqlt_dat                = 12  (* Oracle 7-byte date *)
+let oci_sqlt_chr                = 1   (* ORANET character string *)
 
 (* public interface *)
 module type OCIML =
@@ -93,13 +115,15 @@ sig
   val oraparse:     meta_statement -> string -> unit
   val oraexec:      meta_statement -> unit
   val orabind:      meta_statement -> bind_spec -> col_value -> unit
-  val oradebug:     bool
+  val oradebug:     bool -> unit
   val orasql:       meta_statement -> string -> unit
-  val oraautocom:   bool
+  val oraautocom:   bool -> unit
   val orabindexec:  meta_statement -> col_value array -> unit
   val orastring:    col_value -> string
   val oradesc:      meta_handle -> string -> string array
   val oracols:      meta_statement -> string array
+  val orafetch:     meta_statement -> col_value array
+  val oranullval:   col_value -> unit
 end
 
 (* actual implementation *)
@@ -107,27 +131,22 @@ end
 let handle_seq = ref 0 (* unique ids for handles *)
 let statement_seq = ref 0 (* unique ids for statements *)
 
-(* various constants from oci.h *)
-let oci_attr_username           =  22
-let oci_attr_password           =  23 
-let oci_attr_client_identifier  = 278 
-let oci_attr_client_info        = 368 
-let oci_attr_module             = 366
-let oci_attr_rows_fetched       = 197
-
-(* various constants from ocidfn.h *)
-let oci_sqlt_odt                = 156 (* OCIDate object *)
-let oci_sqlt_str                = 5   (* zero-terminated string *)
-let oci_sqlt_int                = 3   (* integer *)
-let oci_sqlt_flt                = 4   (* floating point number *)
-
 (* write a timestamped log message (log messages from the C code are tagged {C} 
    so anything else is from the ML. This can be set from the application.  *)
-let oradebug = ref false
-let debug msg = match !oradebug with |true -> log_message msg |false -> ()
+let internal_oradebug = ref false
+let oradebug x = internal_oradebug := x; ()
+let debug msg = match !internal_oradebug with |true -> log_message msg |false -> ()
 
 (* autocommit mode - default false *)
-let oraautocom = ref false
+let internal_oraautocom = ref false
+let oraautocom x = internal_oraautocom := x; ()
+
+(* set this to what you want NULLs to be returned as, e.g. Integer 0 or Varchar "" or Datetime 0.0 even! *)
+let internal_oranullval = ref (Integer 0)
+let oranullval x =
+  match x with
+    |Null -> () (* ignore this request! *)
+    |_ -> internal_oranullval := x; ()
 
 (* for exceptions thrown back by the C code, I generally intend that OCI itself 
    does the bulk of the error checking *)
@@ -144,7 +163,7 @@ let date_to_double t =
    type integer (starting from 1) or the name of the placeholder e.g. :varname.
    Note that if you bind the same column by position and by name in subsequent
    calls you will have a small leak in the bind handle cache until the next parse*)
-let orabind sth bs cv =
+let rec orabind sth bs cv =
   (match bs with 
     |Pos p -> debug(sprintf "orabind: p=%d" p) 
     |Name n -> ()
@@ -162,6 +181,7 @@ let orabind sth bs cv =
 	|Varchar _  -> (Hashtbl.replace sth.oci_ptrs bs (oci_bind_by_pos sth.parent_lda.lda sth.sth bh (p, oci_sqlt_str) cv))
 	|Integer _  -> (Hashtbl.replace sth.oci_ptrs bs (oci_bind_by_pos sth.parent_lda.lda sth.sth bh (p, oci_sqlt_int) cv))
 	|Number _   -> (Hashtbl.replace sth.oci_ptrs bs (oci_bind_by_pos sth.parent_lda.lda sth.sth bh (p, oci_sqlt_flt) cv))
+	|Null       -> orabind sth bs !internal_oranullval
     )
     |Name n -> ( 
       let n = match (String.sub n 0 1) with 
@@ -172,6 +192,7 @@ let orabind sth bs cv =
 	|Varchar _  -> (Hashtbl.replace sth.oci_ptrs bs (oci_bind_by_name sth.parent_lda.lda sth.sth bh (n, oci_sqlt_str) cv))
 	|Integer _  -> (Hashtbl.replace sth.oci_ptrs bs (oci_bind_by_name sth.parent_lda.lda sth.sth bh (n, oci_sqlt_int) cv))
 	|Number _   -> (Hashtbl.replace sth.oci_ptrs bs (oci_bind_by_name sth.parent_lda.lda sth.sth bh (n, oci_sqlt_flt) cv))
+	|Null       -> orabind sth bs !internal_oranullval
     )
   );
   sth.binds <- (sth.binds +1);
@@ -194,7 +215,7 @@ let oraparse sth sqltext =
    statement is parsed will also result in an exception being thrown *)
 let oraexec sth =
   let t1 = gettimeofday () in
-  oci_statement_execute sth.parent_lda.lda sth.sth !oraautocom false;
+  oci_statement_execute sth.parent_lda.lda sth.sth !internal_oraautocom false;
   let t2 = gettimeofday () -. t1 in
   debug (sprintf "statement handle %d executed in %fs" sth.statement_id t2);
   sth.execs <- (sth.execs + 1);
@@ -267,22 +288,23 @@ let oraroll lda =
   ()
 
 (* convert a col value to a string for display *)
-let orastring cv = 
+let rec orastring cv = 
   match cv with
     |Varchar x  -> x
     |Integer x  -> (sprintf "%d" x)
     |Number x   -> (sprintf "%f" x)
     |Datetime x -> let months = [|"JAN"; "FEB"; "MAR"; "APR"; "MAY"; "JUN"; "JUL"; "AUG"; "SEP"; "OCT"; "NOV"; "DEC"|] in
 		   (sprintf "%d-%s-%d %d:%d:%d" x.tm_mday months.(x.tm_mon) (x.tm_year+1900) x.tm_hour x.tm_min x.tm_sec)
+    |Null -> orastring !internal_oranullval
 
 (* describe a table - column names only (for now!) - using the implicit describe method - also see implementation of oracols *)
 let oradesc lda tabname =
   let sth = oraopen lda in
   oci_statement_prepare sth.parent_lda.lda sth.sth (sprintf "select * from %s" tabname);
-  oci_statement_execute sth.parent_lda.lda sth.sth !oraautocom true; (* true - with OCI_DESCRIBE_ONLY set *)
-  oci_get_column_names lda.lda sth.sth 
+  oci_statement_execute sth.parent_lda.lda sth.sth !internal_oraautocom true; (* true - with OCI_DESCRIBE_ONLY set *)
+  oci_get_column_types lda.lda sth.sth 
 
-(* list of columns from last exec *)
-let oracols sth = oci_get_column_names sth.parent_lda.lda sth.sth
+(* list of columns from last exec - this differs from oradesc in that it gives all the columns in an actual query *)
+let oracols sth = oci_get_column_types sth.parent_lda.lda sth.sth
 
 (* End of file *)

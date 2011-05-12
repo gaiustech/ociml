@@ -13,8 +13,6 @@
 #include <ocidfn.h>
 #include "oci_wrapper.h"
 
-#define DEBUG 1
-
 /* parse a statement for execution */
 value caml_oci_stmt_prepare(value handles, value stmt, value sql) {
 #ifdef DEBUG

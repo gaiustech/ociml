@@ -12,8 +12,6 @@
 #include <oci.h>
 #include "oci_wrapper.h"
 
-#define DEBUG 1
-
 /* convert an epoch time to an Oracle date */
 void epoch_to_ocidate(double e, OCIDate* ocidate) {
   time_t t = (time_t)e;

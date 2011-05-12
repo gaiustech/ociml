@@ -43,12 +43,18 @@ on a 10g system (vice versa should work). A fatal error on startup is probably
 because ORACLE_HOME isn't set (correctly). 
 
 TODO (in no particular order):
-	- AQ enqueue and (blocking) dequeue
+	- AQ enqueue and (blocking) dequeue*
 	- LOBs
+	- BFILEs*
+	- SAVEPOINTs*
 	- reconnection callback
+	- connection to a specific edition*
 	- RETURNING clause / OUT parameters for stored procedures
-	- bulk operations
+	- array INSERT
 	- "make install" target that plays nicely with ocamlfind
+	- DESC that includes all metadata 
+
+* Not in OraTcl
 
 Inspired by Oracaml[3]
 
