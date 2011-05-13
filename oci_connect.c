@@ -116,9 +116,7 @@ value caml_oci_session_begin(value handles) {
   /* 1M prefetch buffer - this will be configurable at some point...*/
   int buffer = 1024 * 1024;
   x = OCIAttrSet(h.ses, OCI_HTYPE_SESSION, &buffer, sizeof(int), OCI_ATTR_PREFETCH_MEMORY, h.err);
-  if (x != OCI_SUCCESS)  {
-    oci_non_success(h);
-  }
+
   CAMLreturn(Val_unit);
 }
 
