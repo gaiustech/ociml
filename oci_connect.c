@@ -29,6 +29,10 @@ void oci_final_cleanup(void) {
   OCITerminate(OCI_DEFAULT);
 }
 
+/* we will never do comparison on any of the OCI env/conn types. This results
+   in a compilation error as it's not used in this file, but it is used elsewhere */
+static struct custom_operations oci_custom_ops = {"oci_custom_ops", NULL, NULL, NULL, NULL, NULL};
+
 value caml_oci_env_create(value unit) {
 #ifdef DEBUG
   debug("caml_oci_env_create: entered");
@@ -99,13 +103,22 @@ value caml_oci_sess_set_attr(value handles, value attr_name, value attr_value) {
 value caml_oci_session_begin(value handles) {
   CAMLparam1(handles);
   oci_handles_t h = Oci_handles_val(handles);
+  sword x;
+
   OCIAttrSet ((void*)h.svc, OCI_HTYPE_SVCCTX, (void*)h.srv, 0, OCI_ATTR_SERVER,h.err);
-  sword x = OCISessionBegin ((void*)h.svc, h.err, h.ses, OCI_CRED_RDBMS, OCI_DEFAULT);
+  x = OCISessionBegin ((void*)h.svc, h.err, h.ses, OCI_CRED_RDBMS, OCI_DEFAULT);
   if (x != OCI_SUCCESS)  {
     oci_non_success(h);
   }
   /* place the session within the service context */
   OCIAttrSet ((void*)h.svc, OCI_HTYPE_SVCCTX, (void*)h.ses, 0, OCI_ATTR_SESSION, h.err);
+
+  /* 1M prefetch buffer - this will be configurable at some point...*/
+  int buffer = 1024 * 1024;
+  x = OCIAttrSet(h.ses, OCI_HTYPE_SESSION, &buffer, sizeof(int), OCI_ATTR_PREFETCH_MEMORY, h.err);
+  if (x != OCI_SUCCESS)  {
+    oci_non_success(h);
+  }
   CAMLreturn(Val_unit);
 }
 

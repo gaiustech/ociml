@@ -11,6 +11,14 @@ sample:	$(MLOBJS) $(COBJS) ociml_sample.ml
 clean:
 	rm -f ociml ociml_sample *.cmi *.o *.cmo *~ *.tgz
 
+doc: ociml.ml
+	mkdir -p doc
+	rm -f doc/*.html
+	ocamldoc -html -d doc  ociml.ml
+
+deploy:
+	tar czvf ociml_dist.tgz *.ml *.c *.h Makefile README
+
 ociml.cmo:	ociml.ml
 	ocamlc -c -g ociml.ml
  

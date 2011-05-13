@@ -10,10 +10,10 @@ end;
 
 -- one of each supported datatype
 create table ociml_test (
-       omlid   		integer primary key,
-       omldate		date,
-       omlstring	varchar2(80),
-       omlfloat		number);
+       constant_id   	integer primary key,
+       date_entered	date,
+       constant_name	varchar2(80),
+       const_value	number);
 
 exit;
 

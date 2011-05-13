@@ -46,4 +46,55 @@ double ocidate_to_epoch(OCIDate* ocidate) {
   return (double)mktime(ut);
 }
 
+/* dereference a pointer to a string */
+value caml_oci_get_defined_string(value defs) {
+  CAMLparam1(defs);
+  oci_define_t d = Oci_defhandle_val(defs);
+
+    CAMLreturn(caml_copy_string(d.ptr));
+}
+
+/* dereference and return a datetime as epoch */
+value caml_oci_get_date_as_double(value defs) {
+  CAMLparam1(defs);
+  oci_define_t d = Oci_defhandle_val(defs);
+
+  CAMLreturn(caml_copy_double(ocidate_to_epoch(d.ptr)));
+}
+
+value caml_oci_get_double(value handles, value defs) {
+  CAMLparam2(handles, defs);
+  oci_define_t d = Oci_defhandle_val(defs);
+  oci_handles_t h = Oci_handles_val(handles);
+
+  double r;
+
+  sword x = OCINumberToReal(h.err, d.ptr, sizeof(double), &r);
+  if (x != OCI_SUCCESS) {
+    oci_non_success(h);
+  }
+
+  CAMLreturn(caml_copy_double(r));
+}
+
+value caml_oci_get_int(value handles, value defs) {
+  CAMLparam2(handles, defs);
+  oci_define_t d = Oci_defhandle_val(defs);
+  oci_handles_t h = Oci_handles_val(handles);
+
+  int r;
+
+  sword x = OCINumberToInt(h.err, d.ptr, sizeof(int), OCI_NUMBER_SIGNED, &r);
+  if (x != OCI_SUCCESS) {
+    oci_non_success(h);
+  }
+
+#ifdef DEBUG
+  char dbuf[256]; snprintf(dbuf, 255, "caml_oci_get_int: returning %d", r); debug(dbuf);
+#endif
+
+  CAMLreturn(Val_int(r));
+}
+
+
 /* end of file */

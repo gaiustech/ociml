@@ -13,6 +13,10 @@
 #include <ocidfn.h>
 #include "oci_wrapper.h"
 
+#undef DEBUG
+
+static struct custom_operations oci_custom_ops = {"oci_custom_ops", NULL, NULL, NULL, NULL, NULL};
+
 /* parse a statement for execution */
 value caml_oci_stmt_prepare(value handles, value stmt, value sql) {
 #ifdef DEBUG
@@ -22,6 +26,7 @@ value caml_oci_stmt_prepare(value handles, value stmt, value sql) {
   oci_handles_t h = Oci_handles_val(handles);
   OCIStmt* sth = Oci_statement_val(stmt);
   char* sqltext = String_val(sql);
+  int st_type = 0;
 
   sword x = OCIStmtPrepare(sth, h.err, (text*)sqltext, strlen(sqltext), OCI_NTV_SYNTAX, OCI_DEFAULT);
   if (x != OCI_SUCCESS) {
@@ -32,11 +37,25 @@ else {
     debug("caml_oci_stmt_prepare successful");
   }
 #endif
-  CAMLreturn(Val_unit);
+
+ x = OCIAttrGet(sth, OCI_HTYPE_STMT, (ub2*)&st_type, 0, OCI_ATTR_STMT_TYPE, h.err);
+ if (x != OCI_SUCCESS) {
+   oci_non_success(h);
+ }
+ 
+#ifdef DEBUG
+ char dbuf[256]; snprintf(dbuf, 255, "caml_oci_stmt_prepare: stmt_type=%d", st_type); debug(dbuf);
+#endif
+
+ CAMLreturn(Val_int(st_type));
 }
 
 /* execute an already-prepared statement - throws ORA-24337 if not prepared */
 value caml_oci_stmt_execute(value handles, value stmt, value autocommit, value desconly) {
+#ifdef DEBUG
+  debug("caml_oci_stmt_execute: entered");
+#endif
+
   CAMLparam4(handles, stmt, autocommit, desconly);
   oci_handles_t h = Oci_handles_val(handles);
   OCIStmt* sth = Oci_statement_val(stmt);
@@ -63,6 +82,9 @@ value caml_oci_stmt_execute(value handles, value stmt, value autocommit, value d
   if (x != OCI_SUCCESS) {
     oci_non_success(h);
   }
+#ifdef DEBUG
+  debug("caml_oci_stmt_execute: OK");
+#endif
 
   CAMLreturn(Val_unit);
 }
@@ -260,7 +282,6 @@ value caml_oci_bind_by_name(value handles, value stmt, value bindh, value posand
   OCIStmt* s = Oci_statement_val(stmt);
   OCIBind* bh = Oci_bindhandle_val(bindh);
 
-  /* annoyingly can't create a local var immediately after a case in GCC - http://gcc.gnu.org/bugzilla/show_bug.cgi?id=37231  */
   union cv_t {
     char* c;
     int i;
@@ -302,6 +323,10 @@ value caml_oci_bind_by_name(value handles, value stmt, value bindh, value posand
     oci_non_success(h);
   }
   
+#ifdef DEBUG
+  debug("bind by name OK");
+#endif
+
   CAMLreturn((value)ptr);
 }
 

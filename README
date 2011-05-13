@@ -17,9 +17,9 @@ Instructions:
 
 # make
 
-install ociml_test.sql and edit ociml_sample.ml with your login credentials.
+install ociml_test.sql, read and run the sample code:
 
-# ./ociml_sample
+# ./ociml_sample username/password@database
 
 Currently only the basic DML operations (parse, bind, execute and fetch) are 
 available, in addition to connection and transaction control. This is sufficient 
@@ -58,7 +58,8 @@ TODO (in no particular order):
 
 Inspired by Oracaml[3]
 
-Questions, comments, suggestions etc to ociml@gaius.org.uk.
+Questions, comments, suggestions etc please use the Wiki or Issues features on
+GitHub. 
 
 [1] http://download.oracle.com/docs/cd/B28359_01/appdev.111/b28395/toc.htm
 [2] http://oratcl.sourceforge.net/manpage.html
