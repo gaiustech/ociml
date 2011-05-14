@@ -8,18 +8,39 @@ A simple Oracle API for OCaml. See blog for latest: http://gaiustech.wordpress.c
 Please read the file LICENSE and ensure that you are happy with it before
 continuing. 
 
-Developed on OCaml 3.11 and Oracle 10g and 11g on Debian Squeeze with GCC 4. 
-Requires an Oracle client installation to build and at least instantclient to 
-operate. Pure C so no issues with incompatible C++ libraries. Binaries built
-with this library have been run on RHEL 5 with no issues.
+Developed on OCaml 3.11 and 12 and Oracle 10g and 11g on Debian Squeeze with 
+GCC 4. Requires an Oracle client installation to build and at least instantclient
+to operate. Pure C so no issues with incompatible C++ libraries. Binaries built
+with this library have also been run on RHEL 5 with no issues.
 
 Instructions:
 
-# make
+$ make
+$ make shell
 
-install ociml_test.sql, read and run the sample code:
+Install ociml_test.sql in Oracle, then read and run the sample code:
 
-# ./ociml_sample username/password@database
+$ ./ociml_sample username/password@database
+
+As root (but see below):
+
+# make install
+
+To use interactively:
+
+$ ./ocimlsh 
+        Objective Caml version 3.12.0
+
+# open Ociml;;
+# let lda = oralogon "gaius/abc123";;
+val lda : Ociml.meta_handle =
+  {connection_id = 1; commits = 0; rollbacks = 0;
+   lda_op_time = 1.00399088859558105; lda = <abstr>}
+
+The "make install" target does not currently work correctly so ociml.cma and
+ociml.cmi will need to be in the same directory, or include the directory, e.g.
+
+$ ./Projects/ociml/ocimlsh -I ./Projects/ociml/
 
 Currently only the basic DML operations (parse, bind, execute and fetch) are 
 available, in addition to connection and transaction control. This is sufficient 

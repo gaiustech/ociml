@@ -1,0 +1,5 @@
+description = "OCI client library based on OraTcl"
+requires = "unix"
+version = "0.1"
+archive(byte) = "ociml.cma"
+archive(native) = "ociml.cmxa"
