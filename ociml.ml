@@ -353,7 +353,7 @@ let oradesc lda tabname =
   oci_get_column_types lda.lda sth.sth 
 
 (* list of columns from last exec - this differs from oradesc in that it gives all the columns in an actual query *)
-let oracols sth = oci_get_column_types sth.parent_lda.lda sth.sth
+let oracols sth = Array.map (fun x -> Col_type x) (oci_get_column_types sth.parent_lda.lda sth.sth)
 
 (* get the date back from the C layer as a double, then convert it to Unix.tm *)
 let oci_get_defined_date ptr =

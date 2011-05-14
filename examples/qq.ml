@@ -16,7 +16,7 @@ open Report
 
 let qq sth sqltext =
   orasql sth sqltext;
-  let r = new report (Array.map (fun x -> orastring (Col_type x)) (oracols sth)) in
+  let r = new report (Array.map orastring (oracols sth)) in
   begin
     try
       while true do
