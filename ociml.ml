@@ -4,6 +4,7 @@ open Unix
 open Printf
 open Scanf
 open Log_message
+open Ociml_utils
 
 (* Fairly thin wrapper around low-level OCI functions, used to implement higher-level OCI*ML library *)
 
@@ -147,13 +148,6 @@ end
 let handle_seq = ref 0 (* unique ids for handles *)
 let statement_seq = ref 0 (* unique ids for statements *)
 
-let decode_col_type x =
-  match x with
-    |2  (* oci_sqlt_num *)    -> "NUMBER"
-    |12 (* oci_sqlt_dat *)    -> "DATE"
-    |1  (* oci_sqlt_chr *)    -> "VARCHAR2"
-    |_  (* something else! *) -> string_of_int x
-	  	  
 (* write a timestamped log message (log messages from the C code are tagged {C} 
    so anything else is from the ML. This can be set from the application.  *)
 let internal_oradebug = ref false
@@ -178,9 +172,6 @@ let _ = Callback.register_exception "Oci_exception" (Oci_exception (-20000, "Use
   
 (* do this just once at the start - cleaned up by atexit in the C code *)
 let global_env = oci_env_create ()
-
-let date_to_double t =
-  fst (mktime t)
 
 (* bind a value into a placeholder in a statement, can be either an offset of
    type integer (starting from 1) or the name of the placeholder e.g. :varname.

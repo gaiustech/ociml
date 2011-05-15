@@ -18,7 +18,7 @@ Instructions:
 $ make
 $ make shell
 
-Install ociml_test.sql in Oracle, then read and run the sample code:
+Install examples/ociml_test.sql in Oracle, then read and run the sample code:
 
 $ ./ociml_sample username/password@database
 
@@ -73,7 +73,8 @@ TODO (in no particular order):
 	- RETURNING clause / OUT parameters for stored procedures
 	- array INSERT
 	- "make install" target that plays nicely with ocamlfind
-	- DESC that includes all metadata 
+	- DESC that includes all metadata
+	- Proper documentation! 
 
 * Not in OraTcl
 

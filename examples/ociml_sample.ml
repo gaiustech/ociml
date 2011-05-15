@@ -11,7 +11,7 @@ open Ociml
 open Unix
 open Printf
 open Report (* a separate module for formatting tabular data *)
-
+open Ociml_utils (* for decode_col_type *)
 let () =
   try 
     (* set library debugging off - the default anyway - will go to stderr if enabled *)

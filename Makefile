@@ -2,14 +2,14 @@
 
 CCFLAGS	= -ccopt -I/usr/lib/ocaml -ccopt -I$(ORACLE_HOME)/rdbms/public -ccopt -Wall
 COBJS	= oci_common.o oci_connect.o oci_types.o oci_dml.o oci_select.o
-MLOBJS	= log_message.cmo report.cmo ociml.cmo
+MLOBJS	= ociml_utils.cmo log_message.cmo report.cmo ociml.cmo
 CCLIBS  = -cclib -L$(ORACLE_HOME)/lib -cclib -lclntsh
 
-default:$(MLOBJS) $(COBJS) ociml_sample.ml
-	ocamlfind ocamlc -g -custom -o ociml_sample $(CCLIBS) unix.cma $(MLOBJS) ociml_sample.ml $(COBJS) 
+sample:$(MLOBJS) $(COBJS) examples/ociml_sample.ml
+	ocamlfind ocamlc -g -custom -o examples/ociml_sample $(CCLIBS) unix.cma $(MLOBJS) examples/ociml_sample.ml $(COBJS) 
 
 clean:
-	rm -f ociml ociml_sample *.cm* *.o  *~ *.tgz *.so *.a ocimlsh sqlnet.log 
+	rm -f ociml examples/ociml_sample *.cm* *.o  *~ *.so *.a ocimlsh sqlnet.log 
 
 install: default
 	ocamlmklib -verbose -o ociml -L$(ORACLE_HOME)/lib  -lclntsh -cclib -lclntsh unix.cma $(MLOBJS) $(COBJS)
