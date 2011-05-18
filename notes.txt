@@ -1,0 +1,26 @@
+AQ implementation notes
+
+http://download.oracle.com/docs/cd/B10500_01/appdev.920/a96587/apexampl.htm
+
+0) call OCITypeByName to get the TDO
+
+1) find out how many items there are in a message and the size of a pointer. alloc this much in C and store the pointer in OCaml.
+
+2) for each item in the message (MUST BE IN ORDER!)
+   - do OCIStringAssignText or OCINumberAssign 
+   - have to get the pointer and store it at the offset in (1)
+
+3) Call OCIAQEnq with the handles, queue name, the TDO and a pointer to the struct from (1)
+   - user must oracommit
+
+
+
+interface is
+
+oraenqueue: string -> string -> col_value_array -> unit
+(queue name, message type, message body)
+
+oradequeue: string -> string -> x array -> col_value array
+(queue name, message type, array of funcs taking oci_ptr -> int ->col_value -> col_values)
+
+ora

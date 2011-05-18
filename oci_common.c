@@ -56,5 +56,36 @@ void run_sql_simple(OCIEnv* e, oci_handles_t h, char* sql) {
   }
 }
 
+typedef struct {
+  void* ptr;
+} c_alloc_t;
+
+#define C_alloc_val(v) (*((c_alloc_t*) Data_custom_val(v)))
+
+/* callback function to free memory, called by the OCaml GC */
+void caml_free_alloc_t(value ch) {
+  CAMLparam1(ch);
+  c_alloc_t x = C_alloc_val(ch);
+  free(x.ptr);
+  CAMLreturn0;
+}
+
+/* associate callback with datatype */
+static struct custom_operations c_alloc_t_custom_ops = {
+  "c_alloc_t_custom_ops", &caml_free_alloc_t, NULL, NULL, NULL, NULL}; 
+
+value caml_alloc_c_mem(value bytes) {
+  CAMLparam1(bytes);
+  int b = Int_val(bytes);
+
+  c_alloc_t c = {NULL};
+  c.ptr = malloc(b);
+
+  value v = caml_alloc_custom(&c_alloc_t_custom_ops, sizeof(c_alloc_t), 0, 1);
+  C_alloc_val(v) = c;
+  
+  CAMLreturn(v);
+}
+
 
 /* end of file */

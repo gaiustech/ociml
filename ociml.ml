@@ -8,54 +8,6 @@ open Ociml_utils
 
 (* Fairly thin wrapper around low-level OCI functions, used to implement higher-level OCI*ML library *)
 
-(* OCI handles that have to be tracked at the application level *)
-type oci_env (* global OCI environment *)
-type oci_handles (* C struct that bundles error, server, service context and session handles *)
-type oci_statement (* statement handle *)
-type oci_bindhandle (* for binding in prepared statements *)
-type oci_ptr (* void* pointer so we can heap alloc for binding/defining *)
-
-(* data structure for use within the library bundling all the handles associated 
-   with a connection with a unique identifier and some useful statistics *)
-type meta_handle = {connection_id:int; 
-		    mutable commits:int; 
-		    mutable rollbacks:int;
-		    mutable lda_op_time:float;
-		    lda:oci_handles}
-
-(* Variant for the basic data types - datetime crosses back and forth as epoch, 
-   and Oracle's NUMBER datatype of course can be either integer or floating 
-   point but it doesn't make sense to make the OCaml layer deal only in floats *)
-type col_value = Varchar of string|Datetime of Unix.tm|Integer of int|Number of float|Null
-
-(* type for column metadata - name, type, size, is_integer, is_nullable *)
-type col_type = string * int * int * bool * bool
-
-(* for conversion to string *)
-type stringable = Col_value of col_value|Col_type of col_type
-
-(* variant enabling binding by position or by name *)
-type bind_spec = Pos of int|Name of string
-
-(* define includes datatype for later fetching *)
-type define_spec = int * bool * oci_ptr
-
-(* same with statements, counters for parses, binds and execs, and the parent 
-   connection (as it is allocated from the global OCI environment) *)
-type meta_statement = {statement_id:int; 
-		       mutable parses:int;
-		       mutable binds:int;
-		       mutable execs:int;
-		       mutable sth_op_time:float;
-		       mutable rows_affected:int;
-		       mutable num_cols:int;
-		       bound_vals:(bind_spec, oci_bindhandle) Hashtbl.t;
-		       defined_vals:(bind_spec, define_spec) Hashtbl.t;
-		       oci_ptrs:(bind_spec, oci_ptr) Hashtbl.t;
-		       parent_lda:meta_handle; 
-		       sth:oci_statement}
-
-
 (* setup functions, in order in which they should be called - oci_connect.c *)
 external oci_env_create: unit -> oci_env = "caml_oci_env_create"
 external oci_alloc_handles: oci_env -> oci_handles = "caml_oci_alloc_handles"
@@ -99,26 +51,6 @@ external oci_get_defined_string: oci_ptr -> string = "caml_oci_get_defined_strin
 external oci_get_date_as_double: oci_ptr -> float = "caml_oci_get_date_as_double"
 external oci_get_double: oci_handles -> oci_ptr -> float = "caml_oci_get_double"
 external oci_get_int: oci_handles -> oci_ptr -> int = "caml_oci_get_int"
-
-(* various constants from oci.h *)
-let oci_attr_username           =  22
-let oci_attr_password           =  23 
-let oci_attr_client_identifier  = 278 
-let oci_attr_client_info        = 368 
-let oci_attr_module             = 366
-let oci_attr_rows_fetched       = 197
-let oci_attr_prefetch_memory    = 13
-let oci_attr_param_count        = 18
-let oci_stmt_select             = 1
-
-(* various constants from ocidfn.h *)
-let oci_sqlt_odt                = 156 (* OCIDate object *)
-let oci_sqlt_str                = 5   (* zero-terminated string *)
-let oci_sqlt_int                = 3   (* integer *)
-let oci_sqlt_flt                = 4   (* floating point number *)
-let oci_sqlt_num                = 2   (* ORANET numeric *)
-let oci_sqlt_dat                = 12  (* Oracle 7-byte date *)
-let oci_sqlt_chr                = 1   (* ORANET character string *)
 
 (* public interface *)
 module type OCIML =
@@ -339,7 +271,7 @@ let rec orastring c =
 (* describe a table - column names only (for now!) - using the implicit describe method - also see implementation of oracols *)
 let oradesc lda tabname =
   let sth = oraopen lda in
-  oci_statement_prepare sth.parent_lda.lda sth.sth (sprintf "select * from %s" tabname);
+  ignore(oci_statement_prepare sth.parent_lda.lda sth.sth (sprintf "select * from %s" tabname)); (* discard return value here *)
   oci_statement_execute sth.parent_lda.lda sth.sth !internal_oraautocom true; (* true - with OCI_DESCRIBE_ONLY set *)
   oci_get_column_types lda.lda sth.sth 
 

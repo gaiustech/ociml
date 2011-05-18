@@ -6,12 +6,19 @@
 #include <caml/custom.h>
 #include <caml/callback.h>
 #include <caml/fail.h>
+#include <caml/threads.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <oci.h>
 #include <ocidfn.h>
 #include "oci_wrapper.h"
+
+/* from threads.h in 3.12 only */
+#ifndef caml_acquire_runtime_system
+#define caml_acquire_runtime_system caml_leave_blocking_section
+#define caml_release_runtime_system caml_enter_blocking_section
+#endif
 
 #undef DEBUG
 
@@ -69,6 +76,8 @@ value caml_oci_stmt_execute(value handles, value stmt, value autocommit, value d
       debug("caml_oci_stmt_execute: described only");
 #endif
   } else {
+    /* this may take a while */
+    caml_release_runtime_system();
     if (!ac) { /* run query normally */
       x = OCIStmtExecute(h.svc, sth, h.err, 1,  0, (CONST OCISnapshot*) NULL, (OCISnapshot*) NULL, OCI_DEFAULT);
     } else { /* run query and commit immediately */
@@ -77,6 +86,7 @@ value caml_oci_stmt_execute(value handles, value stmt, value autocommit, value d
       debug("caml_oci_stmt_execute: autocommit is ON");
 #endif
     }
+    caml_acquire_runtime_system();
   }
     
   if (x != OCI_SUCCESS) {
