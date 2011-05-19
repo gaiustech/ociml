@@ -6,13 +6,18 @@
 #include <caml/custom.h>
 #include <caml/callback.h>
 #include <caml/fail.h>
-#include <caml/threads.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <oci.h>
 #include <ocidfn.h>
 #include "oci_wrapper.h"
+
+#if OCAML_VERSION_MINOR >= 12
+#include <caml/threads.h>
+#else
+#include <caml/signals.h>
+#endif 
 
 /* from threads.h in 3.12 only */
 #ifndef caml_acquire_runtime_system

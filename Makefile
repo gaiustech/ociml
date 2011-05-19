@@ -5,6 +5,10 @@ COBJS	= oci_common.o oci_connect.o oci_types.o oci_dml.o oci_select.o oci_aq.o
 MLOBJS	= ociml_utils.cmo log_message.cmo report.cmo ociml.cmo
 CCLIBS  = -cclib -L$(ORACLE_HOME)/lib -cclib -lclntsh
 
+OCAML_VERSION_MAJOR = `ocamlopt -version | cut -f1 -d.`
+OCAML_VERSION_MINOR = `ocamlopt -version | cut -f2 -d.`
+OCAML_VERSION_POINT = `ocamlopt -version | cut -f3 -d.`
+
 sample:$(MLOBJS) $(COBJS) examples/ociml_sample.ml
 	ocamlfind ocamlc -annot -g -custom -o examples/ociml_sample $(CCLIBS) unix.cma $(MLOBJS) examples/ociml_sample.ml $(COBJS) 
 
@@ -36,7 +40,7 @@ ociml.cmo:	ociml.ml
 	ocamlc -c -g unix.cma $<
 
 %.o:	%.c
-	ocamlc -g -c $(CCFLAGS) $<
+	ocamlc -g -ccopt -DOCAML_VERSION_MINOR=$(OCAML_VERSION_MINOR) -c $(CCFLAGS) $<
 
 %.cmi:	%.mli
 	ocamlc -c $<
