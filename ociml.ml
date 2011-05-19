@@ -312,6 +312,16 @@ let orafetch sth =
       |1403 -> 
 	debug (sprintf "orafetch: not found: rows=%d" sth.rows_affected); 
 	raise Not_found
-      |_    -> raise (Oci_exception (e_code, e_desc)));
+      |_    -> raise (Oci_exception (e_code, e_desc)))
+
+(* fetch all rows in a cursor and return them as a list *)
+let rec orafetchall_ sth acc =
+  try
+    orafetchall_ sth (acc @ [(orafetch sth)])
+  with
+    |Not_found -> acc
+	  
+let orafetchall sth = 
+  orafetchall_ sth []
 
 (* End of file *)

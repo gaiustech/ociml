@@ -27,7 +27,7 @@ doc: ociml.ml
 	rm -f doc/*.html
 	ocamldoc -html -d doc  ociml.ml
 
-shell: default
+shell: sample
 	ocamlmktop -g -custom -o ocimlsh $(CCLIBS) unix.cma $(MLOBJS) $(COBJS)
 
 dist:
