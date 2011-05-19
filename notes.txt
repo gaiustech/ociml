@@ -23,4 +23,6 @@ oraenqueue: string -> string -> col_value_array -> unit
 oradequeue: string -> string -> x array -> col_value array
 (queue name, message type, array of funcs taking oci_ptr -> int ->col_value -> col_values)
 
+e.g. oci_get_queue_int, oci_get_queue_string
+
 ora

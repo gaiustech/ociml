@@ -52,12 +52,6 @@ void run_sql_simple(OCIEnv* e, oci_handles_t h, char* sql) {
   CHECK_OCI(x, h);
 }
 
-typedef struct {
-  void* ptr;
-} c_alloc_t;
-
-#define C_alloc_val(v) (*((c_alloc_t*) Data_custom_val(v)))
-
 /* callback function to free memory, called by the OCaml GC */
 void caml_free_alloc_t(value ch) {
   CAMLparam1(ch);
@@ -83,11 +77,38 @@ value caml_alloc_c_mem(value bytes) {
   CAMLreturn(v);
 }
 
-/* return the size of a pointer */
+/* return the size of a pointer - happens to be 4 bytes on my dev system */
 value caml_oci_size_of_pointer(value unit) {
   CAMLparam1(unit);
 
-  CAMLreturn(Val_int(sizeof(OCIType*)));
+  CAMLreturn(Val_int(sizeof(void*)));
 }
+
+/* write a pointer at offset bytes from cht.ptr */
+value caml_write_ptr_at_offset(value cht, value offset, value newpointer) {
+  CAMLparam3(cht, offset, newpointer);
+  c_alloc_t c = C_alloc_val(cht);
+  int o = Int_val(offset);
+  c_alloc_t np = C_alloc_val(newpointer);
+  
+  memcpy(c.ptr + o, &np.ptr, sizeof(void*));
+
+  CAMLreturn(Val_unit);
+}
+
+/* read a pointer at offset bytes from cht.ptr */
+value caml_read_ptr_at_offset(value cht, value offset) {
+  CAMLparam2(cht, offset);
+  c_alloc_t c = C_alloc_val(cht);
+  int o = Int_val(offset);
+  c_alloc_t np = {NULL};
+  
+  memcpy(&np.ptr, c.ptr + o, sizeof(void*));
+  
+  value v = caml_alloc_custom(&c_alloc_t_custom_ops, sizeof(c_alloc_t), 0, 1);
+  C_alloc_val(v) = np;
+  CAMLreturn(v);
+}
+
 
 /* end of file */

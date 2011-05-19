@@ -62,6 +62,8 @@ type meta_aq_msg = {msg_type:string; (* type name in the database *)
 (* C heap memory functions - oci_common.c *)
 external oci_alloc_c_mem: int -> oci_ptr = "caml_alloc_c_mem"
 external oci_size_of_pointer: unit -> int = "caml_oci_size_of_pointer"
+external oci_get_tdo_: oci_env -> oci_handles -> string -> oci_ptr = "caml_oci_get_tdo"
+external oci_string_assign: oci_env -> oci_handles -> string -> oci_ptr = "caml_oci_string_assign_text"
 
 (* various constants from oci.h *)
 let oci_attr_username           =  22
@@ -83,6 +85,10 @@ let oci_sqlt_num                = 2   (* ORANET numeric *)
 let oci_sqlt_dat                = 12  (* Oracle 7-byte date *)
 let oci_sqlt_chr                = 1   (* ORANET character string *)
 
+(* Get the TDO of the message type with global env, handles and type name in 
+   UPPERCASE - returns a pointer to it in the OCI object cache *)
+let oci_get_tdo ge lda tn =
+  oci_get_tdo_ ge lda.lda (String.uppercase tn)
 
 let date_to_double t =
   fst (mktime t)
