@@ -27,9 +27,7 @@ value caml_oci_get_column_types(value handles, value stmt) {
   /* get the number of columns in the query */
   int numcols = 0;
   x = OCIAttrGet(sth, OCI_HTYPE_STMT, &numcols, 0, OCI_ATTR_PARAM_COUNT, h.err);
-  if (x != OCI_SUCCESS) {
-    oci_non_success(h);
-  }
+  CHECK_OCI(x, h);
   /* allocate some OCaml storage for this number */
   cols = caml_alloc(numcols, 0);
 
@@ -45,9 +43,8 @@ value caml_oci_get_column_types(value handles, value stmt) {
 
     OCIParamGet(sth, OCI_HTYPE_STMT, h.err, (dvoid**)&ph, i);
     x = OCIAttrGet((dvoid*)ph, OCI_DTYPE_PARAM, (dvoid**)&col_name, (ub4*)&col_name_len, OCI_ATTR_NAME, h.err);
-    if (x != OCI_SUCCESS) {
-      oci_non_success(h);
-    }
+    CHECK_OCI(x, h);
+
     char* col_name2 = (char*)malloc(col_name_len+1);
     strncpy(col_name2, (char*)col_name, col_name_len);
     col_name2[col_name_len] ='\0';
@@ -135,9 +132,7 @@ value caml_oci_define(value handles, value stmt, value pos, value dtype, value s
     debug("caml_oci_define: unknown datatype to define");
   }
   
-  if (x != OCI_SUCCESS) {
-    oci_non_success(h);
-  }
+  CHECK_OCI(x, h);
   
   value v = caml_alloc_custom(&oci_defhandle_custom_ops, sizeof(oci_define_t), 0, 1);
   Oci_defhandle_val(v) = defs;
@@ -155,9 +150,7 @@ value caml_oci_fetch(value handles, value stmt) {
   OCIStmt* sth = Oci_statement_val(stmt);
 
   sword x = OCIStmtFetch2(sth, h.err, 1, OCI_FETCH_NEXT, 1, OCI_DEFAULT);
-  if (x != OCI_SUCCESS) {
-    oci_non_success(h);
-  }
+  CHECK_OCI(x, h);
 
   CAMLreturn(Val_unit);
 }

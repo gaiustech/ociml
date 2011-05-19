@@ -70,9 +70,7 @@ value caml_oci_get_double(value handles, value defs) {
   double r;
 
   sword x = OCINumberToReal(h.err, d.ptr, sizeof(double), &r);
-  if (x != OCI_SUCCESS) {
-    oci_non_success(h);
-  }
+  CHECK_OCI(x, h);
 
   CAMLreturn(caml_copy_double(r));
 }
@@ -85,9 +83,7 @@ value caml_oci_get_int(value handles, value defs) {
   int r;
 
   sword x = OCINumberToInt(h.err, d.ptr, sizeof(int), OCI_NUMBER_SIGNED, &r);
-  if (x != OCI_SUCCESS) {
-    oci_non_success(h);
-  }
+  CHECK_OCI(x, h);
 
 #ifdef DEBUG
   char dbuf[256]; snprintf(dbuf, 255, "caml_oci_get_int: returning %d", r); debug(dbuf);

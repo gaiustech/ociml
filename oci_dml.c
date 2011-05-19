@@ -41,9 +41,8 @@ value caml_oci_stmt_prepare(value handles, value stmt, value sql) {
   int st_type = 0;
 
   sword x = OCIStmtPrepare(sth, h.err, (text*)sqltext, strlen(sqltext), OCI_NTV_SYNTAX, OCI_DEFAULT);
-  if (x != OCI_SUCCESS) {
-    oci_non_success(h);
-  } 
+  CHECK_OCI(x, h)
+
 #ifdef DEBUG
 else {
     debug("caml_oci_stmt_prepare successful");
@@ -51,9 +50,7 @@ else {
 #endif
 
  x = OCIAttrGet(sth, OCI_HTYPE_STMT, (ub2*)&st_type, 0, OCI_ATTR_STMT_TYPE, h.err);
- if (x != OCI_SUCCESS) {
-   oci_non_success(h);
- }
+ CHECK_OCI(x, h)
  
 #ifdef DEBUG
  char dbuf[256]; snprintf(dbuf, 255, "caml_oci_stmt_prepare: stmt_type=%d", st_type); debug(dbuf);
@@ -94,9 +91,7 @@ value caml_oci_stmt_execute(value handles, value stmt, value autocommit, value d
     caml_acquire_runtime_system();
   }
     
-  if (x != OCI_SUCCESS) {
-    oci_non_success(h);
-  }
+  CHECK_OCI(x, h)
 #ifdef DEBUG
   debug("caml_oci_stmt_execute: OK");
 #endif
@@ -111,9 +106,7 @@ value caml_oci_commit (value handles) {
   oci_handles_t h = Oci_handles_val(handles);
 
   sword x = OCITransCommit(h.svc, h.err, 0);
-  if (x != OCI_SUCCESS) {
-    oci_non_success(h);
-  }
+  CHECK_OCI(x, h);
 
   CAMLreturn(Val_unit);
 }
@@ -124,9 +117,7 @@ value caml_oci_rollback (value handles) {
   oci_handles_t h = Oci_handles_val(handles);
 
   sword x = OCITransRollback(h.svc, h.err, 0);
-  if (x != OCI_SUCCESS) {
-    oci_non_success(h);
-  }
+  CHECK_OCI(x, h)
 
   CAMLreturn(Val_unit);
 }
@@ -189,10 +180,8 @@ value caml_oci_bind_date_by_pos(value handles, value stmt, value bindh, value po
   debug(dbuf);
 #endif
   sword x = OCIBindByPos(s, &bh, h.err, (ub4)p, (dvoid*)od2, (sb4)sizeof(OCIDate), SQLT_ODT, 0, 0, 0, 0, 0, OCI_DEFAULT);
-   if (x != OCI_SUCCESS) {
-    oci_non_success(h);
-  }
-   CAMLreturn((value)od2);  /* I am assuming the OCaml GC will just take care of this... */
+  CHECK_OCI(x,h);
+  CAMLreturn((value)od2);  /* I am assuming the OCaml GC will just take care of this... */
 }
 
 /* bind colval at position pos using bind handle bh in statement stmt OR to named parameter name depending on bindtype */
@@ -250,9 +239,7 @@ value caml_oci_bind_by_pos(value handles, value stmt, value bindh, value posandt
     debug("oci_bind_by_pos: unexpected datatype");
   }
 
-  if (x != OCI_SUCCESS) {
-    oci_non_success(h);
-  }
+  CHECK_OCI(x, h);
   
   CAMLreturn((value)ptr);
 }
@@ -274,9 +261,8 @@ value caml_oci_bind_date_by_name(value handles, value stmt, value bindh, value n
   memcpy(od2, &ocidate, sizeof(OCIDate));
 
   sword x = OCIBindByName(s, &bh, h.err, (text*)n, (sb4)strlen((char*)n),(dvoid*)od2, (sb4)sizeof(OCIDate), SQLT_ODT, 0, 0, 0, 0, 0, OCI_DEFAULT);
-   if (x != OCI_SUCCESS) {
-    oci_non_success(h);
-  }
+  CHECK_OCI(x, h);
+
    CAMLreturn((value)od2);  /* I am assuming the OCaml GC will just take care of this... */
 }
 
@@ -334,9 +320,7 @@ value caml_oci_bind_by_name(value handles, value stmt, value bindh, value posand
     debug("caml_oci_bind_by_pos: unexpected datatype");
   }
 
-  if (x != OCI_SUCCESS) {
-    oci_non_success(h);
-  }
+  CHECK_OCI(x, h);
   
 #ifdef DEBUG
   debug("bind by name OK");

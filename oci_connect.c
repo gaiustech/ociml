@@ -79,9 +79,8 @@ value caml_oci_server_attach(value handles, value dbname) {
   char* db = String_val(dbname);
 
   sword x = OCIServerAttach(h.srv, h.err, (text*)db, strlen(db), OCI_DEFAULT);
-  if (x != OCI_SUCCESS) {
-    oci_non_success(h);
-  }
+  CHECK_OCI(x, h)
+
   /* place the attached server within the service context */
   OCIAttrSet((dvoid*)h.svc, OCI_HTYPE_SVCCTX, (dvoid*)h.srv, 0, OCI_ATTR_SERVER, h.err);
   CAMLreturn(Val_unit);
@@ -108,9 +107,8 @@ value caml_oci_session_begin(value handles) {
 
   OCIAttrSet ((void*)h.svc, OCI_HTYPE_SVCCTX, (void*)h.srv, 0, OCI_ATTR_SERVER,h.err);
   x = OCISessionBegin ((void*)h.svc, h.err, h.ses, OCI_CRED_RDBMS, OCI_DEFAULT);
-  if (x != OCI_SUCCESS)  {
-    oci_non_success(h);
-  }
+  CHECK_OCI(x, h)
+
   /* place the session within the service context */
   OCIAttrSet ((void*)h.svc, OCI_HTYPE_SVCCTX, (void*)h.ses, 0, OCI_ATTR_SESSION, h.err);
 
@@ -141,9 +139,7 @@ value caml_oci_session_end (value handles) {
   oci_handles_t h = Oci_handles_val(handles);
 
   sword x = OCISessionEnd(h.svc, h.err, h.ses, 0);
-  if (x != OCI_SUCCESS) {
-    oci_non_success(h);
-  }
+  CHECK_OCI(x, h)
 
   CAMLreturn(Val_unit);
 }
@@ -154,9 +150,7 @@ value caml_oci_server_detach(value handles) {
   oci_handles_t h = Oci_handles_val(handles);
 
   sword x = OCIServerDetach(h.srv, h.err, OCI_DEFAULT);
-  if (x != OCI_SUCCESS) {
-    oci_non_success(h);
-  }
+  CHECK_OCI(x, h)
 
   CAMLreturn(Val_unit);
 }

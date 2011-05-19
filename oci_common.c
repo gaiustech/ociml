@@ -46,14 +46,10 @@ void run_sql_simple(OCIEnv* e, oci_handles_t h, char* sql) {
 
   OCIHandleAlloc((dvoid*)e, (dvoid**) &sth, OCI_HTYPE_STMT, 0, (dvoid**) 0);  
   x = OCIStmtPrepare(sth, h.err, (text*)sql, strlen(sql), OCI_NTV_SYNTAX, OCI_DEFAULT);
-  if (x != OCI_SUCCESS) {
-    oci_non_success(h);
-  }
+  CHECK_OCI(x, h);
   
   x = OCIStmtExecute(h.svc,sth, h.err, 1,  0, (CONST OCISnapshot*) NULL, (OCISnapshot*) NULL, OCI_DEFAULT);
-  if (x != OCI_SUCCESS) {
-    oci_non_success(h);
-  }
+  CHECK_OCI(x, h);
 }
 
 typedef struct {
@@ -87,5 +83,11 @@ value caml_alloc_c_mem(value bytes) {
   CAMLreturn(v);
 }
 
+/* return the size of a pointer */
+value caml_oci_size_of_pointer(value unit) {
+  CAMLparam1(unit);
+
+  CAMLreturn(Val_int(sizeof(OCIType*)));
+}
 
 /* end of file */

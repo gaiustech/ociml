@@ -1,5 +1,7 @@
 /* include file for OCI wrapper */
 
+#define CHECK_OCI(x, h) if (x != OCI_SUCCESS) { oci_non_success(h); }
+
 /* Allocate the handles for error, server, service context and session in a struct for convenience */
 typedef struct {
   OCIError*   err;
