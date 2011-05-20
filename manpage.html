@@ -4,14 +4,24 @@
     </head>
   <body>
      <h2>NAME</h2>
-     OCI*ML - Oracle database access commands for OCaml.
+     <dl><dd>OCI*ML - Oracle database access commands for OCaml.</dd></dl>
      <h2>INTRODUCTION</h2>
-     <p align=justify>OCI*ML is an extension to the OCaml language designed to provide access to an Oracle Database server. Its interface is closely based on OraTcl which provides the same functionality to the Tcl/Tk language, although they have no code in common, and not all OraTcl functionality is implemented (yet). The name follows the Oracle convention (e.g. SQL*Plus, Pro*C) as it is implemented using OCI, the Oracle Call Interface. Programmers using OCI*ML should be familiar with basic concepts of database programming, such as connections, cursors and result sets. To use OCI*ML, that module should be opened:</p>
+     <dl><dd><p align=justify>OCI*ML is an extension to the OCaml language designed to provide access to an Oracle Database server. Its interface is closely based on OraTcl which provides the same functionality for the Tcl/Tk language, although they have no code in common, and not all OraTcl functionality is implemented (yet). The name follows the Oracle convention (e.g. SQL*Plus, Pro*C) as it is implemented using OCI, the Oracle Call Interface. Programmers using OCI*ML should be familiar with basic concepts of database programming, such as connections, cursors and result sets.</p>
+	 
+	 <p align=justify>At present, 4 major datatypes are supported: 
+	   <ul>
+	     <li><code><b>Integer</b></code> corresponding to OCaml's <code>int</code>
+	     <li><code><b>Varchar</b></code> corresponding to OCaml's <code>string</code>
+	     <li><code><b>Datetime</b></code> corresponding to OCaml's <code>Unix.tm</code>
+	     <li><code><b>Number</b></code> corresponding to OCaml's <code>float</code>
+	 </ul></p>
+	 <p align=justify>To use OCI*ML, that module should first be opened:</p>
      <pre>
        open Ociml
        </pre>
      The easiest way to explore the module is via the custom toplevel <code>ocimlsh</code>, for example:
      <pre>
+       $ make shell
        $ ./ocimlsh
                Objective Caml version 3.12.0
  
@@ -19,14 +29,16 @@
        # let lda = oralogon "gaius/abc123";;
        ...
      </pre>
+     The <code>Makefile</code> in the distribution can be modified for Makefiles for new applications.</dd></dl>
      <h2>OCI*ML COMMANDS</h2>
+     <dl><dd>
      <dl>
      <dt><pre><b>oralogon</b> <i>connect-str</i> &rarr; <i>logon-handle</i></pre></dt>
      <dd><p align=justify>Connects to an Oracle server using the connect string, in the same format as expected by SQL*Plus, e.g. <code>username/password@database</code> where <code>database</code> is a valid entry in <code>TNSNAMES.ORA</code>. If the environment variables <code>ORACLE_SID</code> or <code>TWO_TASK</code> are set, then a connect string of just <code>username/password</code> can be used. If the password is invalid, an exception of type <code>Oci_exception</code> will be thrown. This contains an error code (1017 in this case) and an descriptive string. In general, all error handling is in the form of exceptions originating in the OCI layer, using familiar ORA codes, as per SQL*Plus and other standard Oracle tools.</p>
        <p align=justify>This returns a record encapsulating a connection to Oracle, which should be used in subsequent commands. This can be referred to as a connection, or using old OCI terminology an lda, which means logon data area. Within OCI*ML code it is a <code>meta_handle</code>, which means a handle with associated metadata, such as counters for <code>commits</code> and <code>rollbacks</code> which an application may wish to see, along with a unique identifier (sequence number).</p></dd>
     
      <dt><pre><b>oralogoff</b> <i>logon-handle</i></pre></dt>
-     <dd><p align=justify>Disconnects from the Oracle database and frees any allocated memory in the OCI library.</p></dd>
+     <dd><p align=justify>Disconnects from the Oracle database and frees any allocated memory in the OCI library. Implicitly commits any outstanding work.</p></dd>
 
      <dt><pre><b>oraopen</b> <i>logon-handle</i> &rarr; <i>statement-handle</i></pre></dt>
      <dd><p align=justify>Opens and returns a statement handle, sometimes referred to as a cursor. This statement handle should be used in subsequent operations that execute queries or DML on the database. Multiple statement handles can be opened allowing different operations to be in flight at the same time (e.g. one doing <code>SELECT</code> and another <code>INSERT</code>.</p>
@@ -35,12 +47,136 @@
 	 # let sth = oraopen lda;;
        </pre>
      </dd>
-
+     
      <dt><pre><b>oraclose</b> <i>statement-handle</i></pre></dt>
-     <dd><p align=justify>Closes an open statement handle/cursor, but the connection to Oracle remains open.</p></dd>
+     <dd><p align=justify>Closes an open statement handle/cursor, but the connection to Oracle remains open. Outstanding transactions remain outstanding; committing and rolling back is done at the <b>connection</b> level. If this is not the desired behavior, multiple connections to the same server should be opened. </p></dd>
+     
+     <dt><pre><b>oraparse</b> <i>statement-handle statement-text</i></pre></dt>
+     <dd><p align=justify>Parses SQL optionally using bind variables using the previously opened statement handle. Bind variables are "placeholders" prefixed by <code>:</code> which are substituted prior to SQL execution, in a process called <i>binding</i>. This allows a parsed SQL statement to be re-used, saving on the computation of repeated parsing, and defending against SQL injection attacks. A full example of <code>oraparse</code>, <code>orabind</code> and <code>oraexec</code> is below.</p></dd>
+     
+     <dt><pre><b>orabind</b> <i>statement-handle position value</i></pre></dt>
+     <dd><p align=justify>Binds values into a parsed SQL statement handle, by name or by position. Once a statement has been parsed once, it can be bound and executed as many times as is necessary. Binding is suitable for <code>SELECT</code>, <code>INSERT</code>, <code>UPDATE</code> and <code>DELETE</code> statements. Example below. </p></dd>
+     
+     <dt><pre><b>oraexec</b> <i>statement-handle</i></pre></dt>
+     <dd><p align=justify>Executes a previously parsed and if necessary bound SQL statement. For example (from <code>ociml_sample.ml</code> included with the distribution), to bind a row using the position technique, execute it, then bind another row by name:
+	 <pre>
+	   oraparse sth "insert into ociml_test values (:myint, :mydate, :mystring, :myfloat)";
+	   
+	   orabind sth (Pos 1) (Integer 1);
+	   orabind sth (Pos 2) (Datetime (localtime (time ())));
+	   orabind sth (Pos 3) (Varchar "PI");
+	   orabind sth (Pos 4) (Number 3.142);
+	   oraexec sth;
+	   
+	   orabind sth (Name "myint")    (Integer 2);
+	   orabind sth (Name ":mydate")  (Datetime (localtime 0.0));
+	   orabind sth (Name "mystring") (Varchar "e");
+	   orabind sth (Name ":myfloat") (Number 2.718);
+	   oraexec sth;
+	 </pre>
+	 Missing colons are inserted automagically. This also illustrates the four currently supported datatypes.</p>
+     </dd>
+     
+     <dt><pre><b>oracommit</b> <i>logon-handle</i></pre></dt>
+     <dd><p align=justify>Commits any outstanding work on all the statement handles associated with this connection. Finer grained transaction control requires opening more connections to the same database, and creating statement handles from them. </p></dd>
+     
+     <dt><pre><b>oraroll</b> <i>logon-handle</i></pre></dt>
+     <dd><p align=justify>Rolls back any outstanding work on all the statement handles associated with this connection.</p></dd>
+     
+     <dt><pre><b>orasql</b> <i>statement-handle statement-text</i></pre></dt>
+     <dd><p align=justify>This is a convenience function that does <code>oraparse</code> on the SQL text then immediately <code>oraexec</code>. It is not advised to build SQL statements as strings and use this function (use bind variables instead). But it is useful for SQL statements fixed at compile time, or for interactive use in <code>ocimlsh</code>.</p></dd>
+     
+     <dt><pre><b>orabindexec</b> <i>col-value array</i></pre></dt>
+     <dd><p align=justify>A convenience method to bind an entire row to a previously parsed statement handle and execute it, e.g:</p>
+       <pre>
+	 let my_constants = [
+	     [|(Integer 3); (Datetime (localtime (time ()))); (Varchar "Square root 2");           (Number 1.41)|];
+	     [|(Integer 4); (Datetime (localtime (time ()))); (Varchar "Speed of light");          (Number 300000000.)|];
+	     [|(Integer 5); (Datetime (localtime (time ()))); (Varchar "Acceleration of gravity"); (Number 9.8)|]]
+	 in
+	     List.iter (orabindexec sth) my_constants; 
+       </pre>
+     </dd>
 
-     </dl>
+ <dt><pre><b>orafetch</b> <i>statement-handle</i> &rarr; <i>col-value array</i></pre></dt>
+     <dd><p align=justify>Each call to <code>orafetch</code> after a <code>SELECT</code> statement is executed by <code>oraexec</code>, <code>orabindexec</code> or <code>orasql</code> will return an array of column value types (Integer, Varchar, Number or Datetime) corresponding to one row of the result set. At the end of the result set, the exception <code>Not_found</code> is thrown, mimicing the <code>%NOTFOUND</code> construct in PL/SQL. E.g:</p>
+       <pre>
+	 # orasql sth "select * from ociml_test";;
+	 # orafetch sth;;
+	 ...
+	 # orafetch sth;;
+	 Exception: Not_found.
+       </pre>
+     </dd>
+
+     <dt><pre><b>orafetchall</b> <i>statement-handle</i> &rarr; <i>col-value array list</i></pre></dt>
+<dd><p align=justify>Convenience function to <code>orafetch</code> an entire result set and return it as a list of arrays of column values. This can be processed with <code>List.map</code> or <code>List.iter</code>. It is most useful to abstract away the exception handling, for result sets that can easily fit into memory. </p></dd>
+
+     <dt><pre><b>oracols</b> <i>statement-handle</i> &rarr; <i>col-type array</i></pre></dt>
+     <dd><p align=justify>Returns an array containing the column metadata for the last executed <code>SELECT</code> statement on a given statement handle, e.g:</p>
+       <pre>
+	 # oracols sth;;
+	 - : Ociml.stringable array =
+	 [|Ociml.Col_type ("CONSTANT_ID", 2, 22, true, false);
+	 Ociml.Col_type ("DATE_ENTERED", 12, 7, false, true);
+	 Ociml.Col_type ("CONSTANT_NAME", 1, 80, false, true);
+	 Ociml.Col_type ("CONST_VALUE", 2, 22, false, true)|]
+       </pre>
+       The tuples consist of the column name, its type (as defined in <code>oci.h</code>, its size, whether it is an integer or not, and whether it accepts <code>NULL</code> or not. This is is likely to change in a future version.
+     </dd>
+
+     <dt><pre><b>oradesc</b> <i>logon-handle table-name</i> &rarr; <i>col-type array</i></pre></dt>
+     <dd><p align=justify>Describes a table, returning the same format as <code>oracols</code></p></dd>
+     
+     <dt><pre><b>oraautocom</b> <i>[true|false]</i></pre></dt>
+<dd><p align=justify>Sets a mode in which DML statements are committed as soon as they are executed. This is presently a global setting; it may change to per-connection in a future version.</p></dd>
+     
+     <dt><pre><b>oradebug</b> <i>[true|false]</i></pre></dt>
+     <dd><p align=justify>Enables or disables a verbose logging mode in the OCI*ML module. This is sent to STDERR so it can easily be redirected in an application that has this mode enabled, for example:</p>
+       <pre>
+	 $ ./myapp 2>/var/tmp/myapp.log
+       </pre>
+     </dd>
+     
+     <dt><pre><b>orastring</b> <i>col-value</i></pre></dt>
+     <dd><p align=justify>Converts any col-value type (Integer, Varchar, Datetime or Number) to a string.</p></dd>
+     
+     <dt><pre><b>oranullval</b> <i>col-value</i></pre></dt>
+     <dd><p align=justify>Sets the value that will be substituted for <code>NULL</code> in any results, e.g.:
+	 <pre>
+	   # oranullval (Integer 0);;
+	 </pre>
+	 or
+	 <pre>
+	   # oranullval (Datetime 0.0);;
+	 </pre>
+     </p></dd>
+     
+     </dl></dd></dl>
+
+     <h2>ENVIRONMENT VARIABLES</h2>
+     <dl><dd><dl>
+       <dt><pre><b>ORACLE_HOME</b></pre></dt>
+       <dd><p align=justify>The location of the Oracle software. For example, the <code>sqlplus</code> binary will be found at <code>$ORACLE_HOME/bin</code>.</p></dd>
+       
+       <dt><pre><b>ORACLE_SID</b> or <b>TWO_TASK</b></pre></dt>
+       <dd><p align=justify>The default Oracle server to connect to, as defined in <code>TNSNAMES.ORA</code>.</p></dd>
+
+       <dt><pre><b>LD_LIBRARY_PATH</b></pre></dt>
+       <dd><p align=justify>Where the system searches for shared objects to load. It must include <code>$ORACLE_HOME/lib</code> but may include other directories too. The way to set it if OCI*ML reports <code>libclntsh.so</code> cannot be found, preserving what it is previously set to (if anything) is:</p>
+	 <pre>
+	   $ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$ORACLE_HOME/lib
+	 </pre>
+       </dd>
+
+       <dt><pre><b>TNS_ADMIN</b></pre></dt>
+       <dd><p align=justify>Alternate location for the file <code>TNSNAMES.ORA</code>, default is <code>$ORACLE_HOME/network/admin</code></p></dd>
+       </dl>
+     </dd></dl>
+     <h2>AUTHOR</h2>
+     <dl><dd>Gaius Hammond <code>&lt;ociml@gaius.org.uk&gt;</code> May 20<sup>th</sup> 2011</dd></dl>
+
      <h2>ACKNOWLEDGEMENTS</h2>
-    With thanks to the <a href="http://oratcl.sourceforge.net/manpage.html">OraTcl author</a>
+      <dl><dd>With thanks to the <a href="http://oratcl.sourceforge.net/">OraTcl project</a></dd></dl>
   </body>
 </html>
