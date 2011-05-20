@@ -1,0 +1,46 @@
+<html>
+  <head>
+    <title>OCI*ML Manpage</title>
+    </head>
+  <body>
+     <h2>NAME</h2>
+     OCI*ML - Oracle database access commands for OCaml.
+     <h2>INTRODUCTION</h2>
+     <p align=justify>OCI*ML is an extension to the OCaml language designed to provide access to an Oracle Database server. Its interface is closely based on OraTcl which provides the same functionality to the Tcl/Tk language, although they have no code in common, and not all OraTcl functionality is implemented (yet). The name follows the Oracle convention (e.g. SQL*Plus, Pro*C) as it is implemented using OCI, the Oracle Call Interface. Programmers using OCI*ML should be familiar with basic concepts of database programming, such as connections, cursors and result sets. To use OCI*ML, that module should be opened:</p>
+     <pre>
+       open Ociml
+       </pre>
+     The easiest way to explore the module is via the custom toplevel <code>ocimlsh</code>, for example:
+     <pre>
+       $ ./ocimlsh
+               Objective Caml version 3.12.0
+ 
+       # open Ociml;;
+       # let lda = oralogon "gaius/abc123";;
+       ...
+     </pre>
+     <h2>OCI*ML COMMANDS</h2>
+     <dl>
+     <dt><pre><b>oralogon</b> <i>connect-str</i> &rarr; <i>logon-handle</i></pre></dt>
+     <dd><p align=justify>Connects to an Oracle server using the connect string, in the same format as expected by SQL*Plus, e.g. <code>username/password@database</code> where <code>database</code> is a valid entry in <code>TNSNAMES.ORA</code>. If the environment variables <code>ORACLE_SID</code> or <code>TWO_TASK</code> are set, then a connect string of just <code>username/password</code> can be used. If the password is invalid, an exception of type <code>Oci_exception</code> will be thrown. This contains an error code (1017 in this case) and an descriptive string. In general, all error handling is in the form of exceptions originating in the OCI layer, using familiar ORA codes, as per SQL*Plus and other standard Oracle tools.</p>
+       <p align=justify>This returns a record encapsulating a connection to Oracle, which should be used in subsequent commands. This can be referred to as a connection, or using old OCI terminology an lda, which means logon data area. Within OCI*ML code it is a <code>meta_handle</code>, which means a handle with associated metadata, such as counters for <code>commits</code> and <code>rollbacks</code> which an application may wish to see, along with a unique identifier (sequence number).</p></dd>
+    
+     <dt><pre><b>oralogoff</b> <i>logon-handle</i></pre></dt>
+     <dd><p align=justify>Disconnects from the Oracle database and frees any allocated memory in the OCI library.</p></dd>
+
+     <dt><pre><b>oraopen</b> <i>logon-handle</i> &rarr; <i>statement-handle</i></pre></dt>
+     <dd><p align=justify>Opens and returns a statement handle, sometimes referred to as a cursor. This statement handle should be used in subsequent operations that execute queries or DML on the database. Multiple statement handles can be opened allowing different operations to be in flight at the same time (e.g. one doing <code>SELECT</code> and another <code>INSERT</code>.</p>
+       <p align=justify>The statement handle is a record of type <code>meta_statement</code>, which is a statement with associated metadata, including counters for <code>parses</code>, <code>binds</code> and <code>execs</code>, along with a sequence number (independant of logon handles), and a timer for the last operation. Other attributes of the record are for internal use.
+       <pre>
+	 # let sth = oraopen lda;;
+       </pre>
+     </dd>
+
+     <dt><pre><b>oraclose</b> <i>statement-handle</i></pre></dt>
+     <dd><p align=justify>Closes an open statement handle/cursor, but the connection to Oracle remains open.</p></dd>
+
+     </dl>
+     <h2>ACKNOWLEDGEMENTS</h2>
+    With thanks to the <a href="http://oratcl.sourceforge.net/manpage.html">OraTcl author</a>
+  </body>
+</html>
