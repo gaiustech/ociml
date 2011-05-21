@@ -15,6 +15,7 @@ type meta_handle = {connection_id:int;
 		    mutable commits:int; 
 		    mutable rollbacks:int;
 		    mutable lda_op_time:float;
+		    mutable auto_commit:bool;
 		    lda:oci_handles}
 
 (* Variant for the basic data types - datetime crosses back and forth as epoch, 

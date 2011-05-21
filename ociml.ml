@@ -87,8 +87,8 @@ let oradebug x = internal_oradebug := x; ()
 let debug msg = match !internal_oradebug with |true -> log_message msg |false -> ()
 
 (* autocommit mode - default false *)
-let internal_oraautocom = ref false
-let oraautocom x = internal_oraautocom := x; ()
+let oraautocom lda x = 
+  lda.auto_commit <- x; ()
 
 (* set this to what you want NULLs to be returned as, e.g. Integer 0 or Varchar "" or Datetime 0.0 even! *)
 let internal_oranullval = ref (Integer 0)
@@ -158,7 +158,7 @@ let oraparse sth sqltext =
      pointer to it indexed by Pos n *)
   (match sql_type with
     |1 -> (
-      oci_statement_execute sth.parent_lda.lda sth.sth !internal_oraautocom true; 
+      oci_statement_execute sth.parent_lda.lda sth.sth sth.parent_lda.auto_commit true; 
       let sql_cols = oci_get_column_types sth.parent_lda.lda sth.sth in
       sth.num_cols <- Array.length sql_cols;
       Array.iteri (fun i (name, dtype, size, is_int, is_null) -> 
@@ -178,7 +178,7 @@ let oraparse sth sqltext =
    statement is parsed will also result in an exception being thrown *)
 let oraexec sth =
   let t1 = gettimeofday () in
-  oci_statement_execute sth.parent_lda.lda sth.sth !internal_oraautocom false;
+  oci_statement_execute sth.parent_lda.lda sth.sth sth.parent_lda.auto_commit false;
   let t2 = gettimeofday () -. t1 in
   debug (sprintf "statement handle %d executed in %fs" sth.statement_id t2);
   sth.execs <- (sth.execs + 1);
@@ -231,7 +231,7 @@ let oralogon connstr =
   let c = !handle_seq in 
   let t2 = (gettimeofday () -. t1) in
   debug (sprintf "established connection %d as %s@%s in %fs" c username database t2);
-  {connection_id=c; commits=0; rollbacks=0; lda_op_time=t2; lda=h}
+  {connection_id=c; commits=0; rollbacks=0; auto_commit=false; lda_op_time=t2; lda=h}
 
 (* Disconnect from Oracle and release the memory. Global env is still allocated *)
 let oralogoff lda =
@@ -272,7 +272,7 @@ let rec orastring c =
 let oradesc lda tabname =
   let sth = oraopen lda in
   ignore(oci_statement_prepare sth.parent_lda.lda sth.sth (sprintf "select * from %s" tabname)); (* discard return value here *)
-  oci_statement_execute sth.parent_lda.lda sth.sth !internal_oraautocom true; (* true - with OCI_DESCRIBE_ONLY set *)
+  oci_statement_execute sth.parent_lda.lda sth.sth sth.parent_lda.auto_commit true; (* true - with OCI_DESCRIBE_ONLY set *)
   oci_get_column_types lda.lda sth.sth 
 
 (* list of columns from last exec - this differs from oradesc in that it gives all the columns in an actual query *)

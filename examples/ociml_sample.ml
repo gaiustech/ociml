@@ -47,7 +47,7 @@ let () =
     oracommit lda;
 
     (* now set autocommit mode on *)
-    oraautocom true;
+    oraautocom lda true;
 
     (* set values for these variables by name - note colon added automagically if missing *)
     orabind sth (Name "myint")    (Integer 2);
