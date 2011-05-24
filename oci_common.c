@@ -12,6 +12,8 @@
 #include <time.h>
 #include "oci_wrapper.h"
 
+#define DEBUG
+
 /* write a timestamped log message {C} for C code */
 void debug(char* msg) {
   char* datebuf = (char*)malloc(32);
@@ -55,6 +57,9 @@ void run_sql_simple(OCIEnv* e, oci_handles_t h, char* sql) {
 /* callback function to free memory, called by the OCaml GC */
 void caml_free_alloc_t(value ch) {
   CAMLparam1(ch);
+#ifdef DEBUG
+  debug("caml_free_alloc_t: entered");
+#endif
   c_alloc_t x = C_alloc_val(ch);
   free(x.ptr);
   CAMLreturn0;
@@ -70,6 +75,9 @@ value caml_alloc_c_mem(value bytes) {
 
   c_alloc_t c = {NULL};
   c.ptr = malloc(b);
+#ifdef DEBUG
+  char dbuf[256]; snprintf(dbuf, 255, "caml_alloc_c_mem: allocated %d bytes at address %p", b, c.ptr); debug(dbuf);
+#endif
 
   value v = caml_alloc_custom(&c_alloc_t_custom_ops, sizeof(c_alloc_t), 0, 1);
   C_alloc_val(v) = c;
@@ -91,10 +99,27 @@ value caml_write_ptr_at_offset(value cht, value offset, value newpointer) {
   int o = Int_val(offset);
   c_alloc_t np = C_alloc_val(newpointer);
   
+#ifdef DEBUG
+  char dbuf[256]; snprintf(dbuf, 255, "caml_write_ptr_at_offset: written %d-byte pointer to %p at offset %d from %p", sizeof(void*), np.ptr, o, c.ptr); debug(dbuf);
+#endif
+
   memcpy(c.ptr + o, &np.ptr, sizeof(void*));
+  CAMLreturn(Val_unit);
+}
+
+/* write an int at offset bytes from cht.ptr */
+value c_write_int_at_offset(value cht, value offset, value intdata) {
+  CAMLparam3(cht, offset, intdata);
+  c_alloc_t c = C_alloc_val(cht);
+  int o = Int_val(offset);
+  int i = Int_val(intdata);
+  int* pi = &i;
+  
+  memcpy(c.ptr + o, pi, sizeof(int));
 
   CAMLreturn(Val_unit);
 }
+
 
 /* read a pointer at offset bytes from cht.ptr */
 value caml_read_ptr_at_offset(value cht, value offset) {
@@ -104,6 +129,9 @@ value caml_read_ptr_at_offset(value cht, value offset) {
   c_alloc_t np = {NULL};
   
   memcpy(&np.ptr, c.ptr + o, sizeof(void*));
+#ifdef DEBUG
+  char dbuf[256]; snprintf(dbuf, 255, "caml_read_ptr_at_offset: read %d-byte pointer to %p at offset %d", sizeof(void*), np.ptr, o); debug(dbuf);
+#endif
   
   value v = caml_alloc_custom(&c_alloc_t_custom_ops, sizeof(c_alloc_t), 0, 1);
   C_alloc_val(v) = np;
