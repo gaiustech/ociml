@@ -7,6 +7,7 @@
 create type message_t as object (
        message_id     integer,
        message_text   varchar2(80));
+/
 
 begin
 	dbms_aqadm.create_queue_table (
@@ -21,6 +22,23 @@ begin
 		queue_name => 'message_queue');
 end;
 /
+
+create type int2_t as object (int1 integer, int2 integer);
+/
+begin
+	dbms_aqadm.create_queue_table (
+		queue_table => 'tbl_int2_queue',
+		queue_payload_type => 'int2_t');
+				  
+	dbms_aqadm.create_queue (
+		queue_name => 'int2_queue',
+		queue_table => 'tbl_int2_queue');
+
+	dbms_aqadm.start_queue (
+		queue_name => 'int2_queue');
+end;
+/
+
 		
 -- raw queue
 

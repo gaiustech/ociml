@@ -40,7 +40,7 @@ value caml_oci_env_create(value unit) {
 
   CAMLparam1(unit);
   /* OCI_OBJECT mode to enable AQ features */
-  sword x = OCIEnvCreate(&global_env, OCI_OBJECT, 0, 0, 0, 0, 0, 0);
+  sword x = OCIEnvCreate(&global_env, OCI_OBJECT|OCI_THREADED|OCI_SHARED|OCI_EVENTS, 0, 0, 0, 0, 0, 0);
   if (x != OCI_SUCCESS) {
     raise_caml_exception(-1, "Cannot create an OCI environment (check ORACLE_HOME?)");
   }

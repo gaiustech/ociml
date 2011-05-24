@@ -8,6 +8,94 @@ open Ociml_utils
 
 (* Fairly thin wrapper around low-level OCI functions, used to implement higher-level OCI*ML library *)
 
+(* OCI handles that have to be tracked at the application level *)
+type oci_env (* global OCI environment *)
+type oci_handles (* C struct that bundles error, server, service context and session handles *)
+type oci_statement (* statement handle *)
+type oci_bindhandle (* for binding in prepared statements *)
+type oci_ptr (* void* pointer so we can heap alloc for binding/defining *)
+
+(* data structure for use within the library bundling all the handles associated 
+   with a connection with a unique identifier and some useful statistics *)
+type meta_handle = {connection_id:int; 
+		    mutable commits:int; 
+		    mutable rollbacks:int;
+		    mutable lda_op_time:float;
+		    mutable auto_commit:bool;
+		    lda:oci_handles}
+
+(* Variant for the basic data types - datetime crosses back and forth as epoch, 
+   and Oracle's NUMBER datatype of course can be either integer or floating 
+   point but it doesn't make sense to make the OCaml layer deal only in floats *)
+type col_value = Varchar of string|Datetime of Unix.tm|Integer of int|Number of float|Null
+
+(* type for column metadata - name, type, size, is_integer, is_nullable *)
+type col_type = string * int * int * bool * bool
+
+(* for conversion to string *)
+type stringable = Col_value of col_value|Col_type of col_type
+
+(* variant enabling binding by position or by name *)
+type bind_spec = Pos of int|Name of string
+
+(* define includes datatype for later fetching *)
+type define_spec = int * bool * oci_ptr
+
+(* same with statements, counters for parses, binds and execs, and the parent 
+   connection (as it is allocated from the global OCI environment) *)
+type meta_statement = {statement_id:int; 
+		       mutable parses:int;
+		       mutable binds:int;
+		       mutable execs:int;
+		       mutable sth_op_time:float;
+		       mutable rows_affected:int;
+		       mutable num_cols:int;
+		       bound_vals:(bind_spec, oci_bindhandle) Hashtbl.t;
+		       defined_vals:(bind_spec, define_spec) Hashtbl.t;
+		       oci_ptrs:(bind_spec, oci_ptr) Hashtbl.t;
+		       parent_lda:meta_handle; 
+		       sth:oci_statement}
+
+(* pointer to C memory, with an offset to memory used so far *)
+type meta_c_alloc = {c_ptr:oci_ptr;
+		     bytes_alloc:int;
+		     mutable bytes_offset:int}
+
+type meta_aq_msg = {msg_type:string; (* type name in the database *)
+		    msg_tdo:oci_ptr; (* pointer to TDO *)
+		    msg_items:col_value array; (* the actual message *)
+		    item_ptrs:oci_ptr list;}
+
+(* various constants from oci.h *)
+let oci_attr_username           =  22
+let oci_attr_password           =  23 
+let oci_attr_client_identifier  = 278 
+let oci_attr_client_info        = 368 
+let oci_attr_module             = 366
+let oci_attr_rows_fetched       = 197
+let oci_attr_prefetch_memory    = 13
+let oci_attr_param_count        = 18
+let oci_stmt_select             = 1
+
+(* various constants from ocidfn.h *)
+let oci_sqlt_odt                = 156 (* OCIDate object *)
+let oci_sqlt_str                = 5   (* zero-terminated string *)
+let oci_sqlt_int                = 3   (* integer *)
+let oci_sqlt_flt                = 4   (* floating point number *)
+let oci_sqlt_num                = 2   (* ORANET numeric *)
+let oci_sqlt_dat                = 12  (* Oracle 7-byte date *)
+let oci_sqlt_chr                = 1   (* ORANET character string *)
+
+let date_to_double t =
+  fst (mktime t)
+
+let decode_col_type x =
+  match x with
+    |2  (* oci_sqlt_num *)    -> "NUMBER"
+    |12 (* oci_sqlt_dat *)    -> "DATE"
+    |1  (* oci_sqlt_chr *)    -> "VARCHAR2"
+    |_  (* something else! *) -> string_of_int x
+	  	  
 (* setup functions, in order in which they should be called - oci_connect.c *)
 external oci_env_create: unit -> oci_env = "caml_oci_env_create"
 external oci_alloc_handles: oci_env -> oci_handles = "caml_oci_alloc_handles"
@@ -52,6 +140,21 @@ external oci_get_date_as_double: oci_ptr -> float = "caml_oci_get_date_as_double
 external oci_get_double: oci_handles -> oci_ptr -> float = "caml_oci_get_double"
 external oci_get_int: oci_handles -> oci_ptr -> int = "caml_oci_get_int"
 
+(* C heap memory functions - oci_common.c *)
+external oci_alloc_c_mem: int -> oci_ptr = "caml_alloc_c_mem"
+external oci_size_of_pointer: unit -> int = "caml_oci_size_of_pointer"
+external oci_constant_assign: oci_ptr -> int -> int -> unit = "c_write_int_at_offset"
+external oci_write_ptr_at_offset: oci_ptr -> int -> oci_ptr -> unit = "caml_write_ptr_at_offset"
+external oci_read_ptr_at_offset: oci_ptr -> int -> oci_ptr = "caml_read_ptr_at_offset"
+
+(* AQ functions - oci_aq.c *)
+external oci_get_tdo_: oci_env -> oci_handles -> string -> oci_ptr = "caml_oci_get_tdo"
+external oci_string_assign: oci_env -> oci_handles -> string -> oci_ptr = "caml_oci_string_assign_text"
+external oci_number_assign: oci_handles -> int -> oci_ptr = "caml_oci_number_assign_int"
+external oci_aq_enqueue: oci_handles -> string -> oci_ptr -> oci_ptr -> oci_ptr -> unit = "caml_oci_aq_enqueue"
+external oci_int_from_number: oci_handles -> oci_ptr -> int = "caml_oci_int_from_number"
+external oci_string_from_string: oci_env -> oci_ptr -> string = "caml_oci_string_from_string"
+
 (* public interface *)
 module type OCIML =
 sig
@@ -66,7 +169,7 @@ sig
   val orabind:      meta_statement -> bind_spec -> col_value -> unit
   val oradebug:     bool -> unit
   val orasql:       meta_statement -> string -> unit
-  val oraautocom:   bool -> unit
+  val oraautocom:   meta_handle -> unit
   val orabindexec:  meta_statement -> col_value array -> unit
   val orastring:    stringable -> string
   val oradesc:      meta_handle -> string -> string array
@@ -165,7 +268,6 @@ let oraparse sth sqltext =
 	Hashtbl.replace sth.defined_vals (Pos i) (oci_define sth.parent_lda.lda sth.sth i (dtype, is_int) size)) sql_cols)
     |_ -> ()
   );
-
 
   sth.parses <- (sth.parses + 1);
   sth.sth_op_time <- t2;
@@ -323,5 +425,48 @@ let rec orafetchall_ sth acc =
 	  
 let orafetchall sth = 
   orafetchall_ sth []
+
+
+(* Get the TDO of the message type with global env, handles (already unpacked) and type name in 
+   UPPERCASE - returns a pointer to it in the OCI object cache *)
+let oci_get_tdo ge lda tn =
+  oci_get_tdo_ ge lda (String.uppercase tn)
+
+let oci_int_from_payload lda pa i =
+  let ip = oci_read_ptr_at_offset pa i in
+  oci_int_from_number lda.lda ip
+
+let oci_string_from_payload pa i = 
+  let sp = oci_read_ptr_at_offset pa i in
+  oci_string_from_string global_env sp
+
+(* build and enqueue an AQ message *)
+let oraenqueue lda queue_name message_type payload = 
+  let ps = oci_size_of_pointer () in           (* pointer size *)
+  let ni = Array.length payload in             (* payload items *)
+  let pa = oci_alloc_c_mem (ni * ps) in        (* payload array *)
+  let na = oci_alloc_c_mem ((ni + 1) * ps) in  (* null array *)
+  let mt = oci_get_tdo global_env lda.lda message_type in (* message TDO pointer - TDO cached by OCI anyway *)
+  oci_constant_assign na 0 0; (* put OCI_IND_NOTNULL from oro.h at position 0 (TDO) in the null array *)
+  Array.iteri (fun i x ->
+    match x with
+      |Varchar v -> 
+	begin
+	  let s = oci_string_assign global_env lda.lda v in
+	  oci_write_ptr_at_offset pa (i * ps) s;   (* write OCIString at offset i in payload array *)
+	  debug(sprintf "read back string '%s' as '%s'" v (oci_string_from_payload pa (i*ps)));
+	  oci_constant_assign na ((i + 1) * ps) 0  (* write OCI_IND_NOTNULL at position i+1 in the null array *)
+	end
+      |Integer n -> 
+	begin
+	  let s = oci_number_assign lda.lda n in
+	  oci_write_ptr_at_offset pa (i * ps) s; 
+	  debug(sprintf "read back int %d as %d\n" n (oci_int_from_payload lda pa (i * ps)));
+	  oci_constant_assign na ((i + 1) * ps) 0;
+	end
+      | _ -> oci_constant_assign na ((i + 1) * ps) (-1) (* OCI_IND_NULL *)
+  ) payload;
+  oci_aq_enqueue lda.lda queue_name mt pa na;
+  ()
 
 (* End of file *)
