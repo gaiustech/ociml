@@ -82,6 +82,23 @@ value caml_oci_int_from_number(value handles, value cht, value offset) {
   CAMLreturn(Val_int(test));
 }
 
+value caml_oci_flt_from_number(value handles, value cht, value offset) {
+  CAMLparam3(handles, cht, offset);
+  oci_handles_t h = Oci_handles_val(handles);
+  c_alloc_t t = C_alloc_val(cht);
+  int o = Int_val(offset);
+
+  OCINumber* on = (OCINumber*)malloc(sizeof(OCINumber));
+  memcpy(&on, &t.ptr + o, sizeof(OCINumber));
+  double test;
+  sword x = OCINumberToReal(h.err, on, sizeof(double), &test);
+  CHECK_OCI(x, h);
+#ifdef DEBUG
+  char dbuf[256]; snprintf(dbuf, 255, "caml_oci_int_from_number: retrieved number from payload as %f", test); debug(dbuf);
+#endif
+  CAMLreturn(caml_copy_double(test));
+}
+
 value caml_oci_string_from_string(value env, value cht) {
   CAMLparam2(env, cht);
   c_alloc_t t = C_alloc_val(cht);
@@ -108,4 +125,37 @@ value caml_oci_aq_enqueue(value handles, value queue_name, value message_tdo, va
 #endif
   CAMLreturn(Val_unit);
 }
+
+/* dequeue a message */
+value caml_oci_aq_dequeue(value handles, value queue_name, value message_tdo, value message, value null_message) {
+  CAMLparam5(handles, queue_name, message_tdo, message, null_message);
+  oci_handles_t h = Oci_handles_val(handles);
+  char* qn = String_val(queue_name);
+  c_alloc_t mt = C_alloc_val(message_tdo);
+  c_alloc_t m = C_alloc_val(message);
+  c_alloc_t nm = C_alloc_val(null_message);
+  sword x;
+#ifdef DEBUG
+  char dbuf[256]; snprintf(dbuf, 255, "caml_oci_aq_dequeue: dequeueing message from '%s'",  qn); debug(dbuf);
+#endif
+
+  /* first pass - let OCI allocate some memory */
+  dvoid* payload = NULL;
+  snprintf(dbuf, 255, "before: address of payload is %p", payload); debug(dbuf);
+  x = OCIAQDeq(h.svc, h.err, (text*)qn, 0, 0, mt.ptr, &payload, (dvoid**)&nm.ptr, 0, 0);
+  snprintf(dbuf, 255, "after: address of payload is %p", payload); debug(dbuf);
+  CHECK_OCI(x, h);
+
+  /* second pass - actually dequeue */
+  x = OCIAQDeq(h.svc, h.err, (text*)qn, 0, 0, mt.ptr, &payload, (dvoid**)&nm.ptr, 0, 0);
+  CHECK_OCI(x, h);
+  
+  memcpy(&m.ptr, payload, sizeof(void*));
+
+#ifdef DEBUG
+  debug("caml_oci_aq_enqueue: message dequeued successfully");
+#endif
+  CAMLreturn(Val_unit);
+}
+
 /* end of file */

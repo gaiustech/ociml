@@ -143,13 +143,16 @@ external oci_constant_assign: oci_ptr -> int -> int -> unit = "c_write_int_at_of
 external oci_write_ptr_at_offset: oci_ptr -> int -> oci_ptr -> unit = "caml_write_ptr_at_offset"
 external oci_read_ptr_at_offset: oci_ptr -> int -> oci_ptr = "caml_read_ptr_at_offset"
 external oci_write_int_at_offset: oci_handles -> oci_ptr -> int -> int -> unit = "caml_oci_write_int_at_offset"
+external oci_write_flt_at_offset: oci_handles -> oci_ptr -> int -> float -> unit = "caml_oci_write_flt_at_offset"
 
 (* AQ functions - oci_aq.c *)
 external oci_get_tdo_: oci_env -> oci_handles -> string -> oci_ptr = "caml_oci_get_tdo"
 external oci_string_assign: oci_env -> oci_handles -> string -> oci_ptr = "caml_oci_string_assign_text"
 external oci_aq_enqueue: oci_handles -> string -> oci_ptr -> oci_ptr -> oci_ptr -> unit = "caml_oci_aq_enqueue"
 external oci_int_from_number: oci_handles -> oci_ptr -> int -> int = "caml_oci_int_from_number"
+external oci_flt_from_number: oci_handles -> oci_ptr -> int -> float = "caml_oci_flt_from_number"
 external oci_string_from_string: oci_env -> oci_ptr -> string = "caml_oci_string_from_string"
+external oci_aq_dequeue: oci_handles -> string -> oci_ptr -> oci_ptr -> oci_ptr -> unit = "caml_oci_aq_dequeue"
 
 (* public interface *)
 module type OCIML =
@@ -172,6 +175,8 @@ sig
   val oracols:      meta_statement -> string array
   val orafetch:     meta_statement -> col_value array
   val oranullval:   col_value -> unit
+  val oraenqueue:   meta_handle -> string -> string -> col_value array -> unit
+  val oradequeue:   meta_handle -> string -> string -> col_value array -> col_value array
 end
 
 (* actual implementation *)
@@ -430,6 +435,9 @@ let oci_get_tdo ge lda tn =
 let oci_int_from_payload lda pa i =
   oci_int_from_number lda.lda pa i
 
+let oci_flt_from_payload lda pa i =
+  oci_flt_from_number lda.lda pa i
+
 let oci_string_from_payload pa i = 
   let sp = oci_read_ptr_at_offset pa i in
   oci_string_from_string global_env sp
@@ -477,14 +485,58 @@ let oraenqueue_obj lda queue_name message_type payload =
 	  co := (!co + ns);
 	  oci_constant_assign na ((i + 1) * ps) 0;
 	end
+      |Number n ->
+	begin
+	  oci_write_flt_at_offset lda.lda pa !co n;
+	  debug(sprintf "read back float %f at offset %d as %f\n" n !co (oci_flt_from_payload lda pa !co));
+	  co := (!co + ns);
+	  oci_constant_assign na ((i + 1) * ps) 0;
+	end
       | _ -> oci_constant_assign na ((i + 1) * ps) (-1) (* OCI_IND_NULL *)
   ) payload;
   oci_aq_enqueue lda.lda queue_name mt pa na;
   ()
 
+let oradequeue_obj lda queue_name message_type dummy_payload =
+  let ps = oci_size_of_pointer () in                                           (* pointer size - for OCIString *)
+  let ns = oci_size_of_number () in                                            (* number size - for OCINumber *)
+  let ni = Array.length dummy_payload in                                       (* number of payload items *)
+  let pa = oci_alloc_c_mem (calculate_aq_message_size ps ns dummy_payload) in  (* payload array *)
+  let na = oci_alloc_c_mem ((ni + 1) * ps) in                                  (* null array - fixed size - need to handle this? *)
+  let mt = oci_get_tdo global_env lda.lda message_type in                      (* message TDO pointer *)
+  let co = ref 0 in                                                            (* current offset *)
+  let rv = Array.make ni Null in                                               (* array returned from function *)
+  oci_aq_dequeue lda.lda queue_name mt pa na;
+  Array.iteri (fun i x -> 
+    match x with 
+      |Varchar z ->
+	begin
+	  rv.(i) <- Varchar (oci_string_from_payload pa !co);
+	  co := (!co + ps);
+	  debug(sprintf "oradequeue_obj: dequeued string '%s'" (orastring (Col_value rv.(i))))
+	  end
+      |Integer z ->
+	begin
+	  rv.(i) <- Integer (oci_int_from_payload lda pa !co);
+	  co := (!co + ns);
+	  end
+      |Number z ->
+	begin
+	  rv.(i) <- Number (oci_flt_from_payload lda pa !co);
+	  co := (!co + ns);
+	end;
+      |_ -> debug("dequeue for this type not supported yet");
+  ) dummy_payload;
+    rv
+    
 let oraenqueue lda queue_name message_type payload =
   match message_type with
     |"RAW" -> debug("Raw AQ not implemented yet")
     |_     -> oraenqueue_obj lda queue_name message_type payload
+
+let oradequeue lda queue_name message_type payload =
+  match message_type with
+    |"RAW" -> debug("Raw AQ not implemented yet"); [|Null|];
+    |_     -> oradequeue_obj lda queue_name message_type payload
 
 (* End of file *)

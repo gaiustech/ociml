@@ -130,6 +130,29 @@ value caml_oci_write_int_at_offset(value handles, value cht, value offset, value
   CAMLreturn(Val_unit);
 }
 
+
+value caml_oci_write_flt_at_offset(value handles, value cht, value offset, value newfloat) {
+  CAMLparam4(handles, cht, offset, newfloat);
+  oci_handles_t h = Oci_handles_val(handles);
+  c_alloc_t c = C_alloc_val(cht);
+  int o = Int_val(offset);
+  double nd = Double_val(newfloat); 
+  sword x;
+
+#ifdef DEBUG
+  char dbuf[256]; snprintf(dbuf, 255, "caml_oci_write_flt_at_offset: creating OCINumber for %f at offset %d", nd, o); debug(dbuf);
+#endif
+  OCINumber on;
+
+  x = OCINumberFromReal(h.err, &nd, sizeof(double), &on);
+  CHECK_OCI(x, h);
+
+  memcpy(c.ptr + o, &on, sizeof(OCINumber));
+
+  CAMLreturn(Val_unit);
+}
+
+
 /* write a pointer at offset bytes from cht.ptr */
 value caml_write_ptr_at_offset(value cht, value offset, value newpointer) {
   CAMLparam3(cht, offset, newpointer);
