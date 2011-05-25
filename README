@@ -1,0 +1,90 @@
+(* OCI*ML 0.1 *)
+
+A simple Oracle API for OCaml. See blog for latest: http://gaiustech.wordpress.com 
+
+*** If you are reading this on GitHub then the most-usable version will be in the 
+    .tgz so just download that to get started. Then read this file in there.  ***
+
+Please read the file LICENSE and ensure that you are happy with it before
+continuing. 
+
+Developed on OCaml 3.11 and 12 and Oracle 10g and 11g on Debian Squeeze with 
+GCC 4. Requires an Oracle client installation to build and at least instantclient
+to operate. Pure C so no issues with incompatible C++ libraries. Binaries built
+with this library have also been run on RHEL 5 with no issues.
+
+Instructions:
+
+$ make
+$ make shell
+
+Install examples/ociml_test.sql in Oracle, then read and run the sample code:
+
+$ ./ociml_sample username/password@database
+
+As root (but see below):
+
+# make install
+
+To use interactively:
+
+$ ./ocimlsh 
+        Objective Caml version 3.12.0
+
+# open Ociml;;
+# let lda = oralogon "gaius/abc123";;
+val lda : Ociml.meta_handle =
+  {connection_id = 1; commits = 0; rollbacks = 0;
+   lda_op_time = 1.00399088859558105; lda = <abstr>}
+
+The "make install" target does not currently work correctly so ociml.cma and
+ociml.cmi will need to be in the same directory, or include the directory, e.g.
+
+$ ./Projects/ociml/ocimlsh -I ./Projects/ociml/
+
+Currently only the basic DML operations (parse, bind, execute and fetch) are 
+available, in addition to connection and transaction control. This is sufficient 
+to connect to Oracle and run any SQL statements, returning the result set to 
+OCaml code for further processing. See the file ociml_sample.ml for further
+details. It is assumed that you are basically familiar with Oracle and are
+looking for a way to get "real work" done in OCaml as an alternative to say 
+Perl.
+
+The library is structured as a thin wrapper around the OCI[1] library in C, on 
+top of which is a higher level library patterned after OraTcl[2], as much as 
+possible the commands do the same things, but usually with fewer options. The 
+OCaml debug log can be enabled in the application, but C debugging requires 
+#define'ing DEBUG and rebuilding. Debug messages from C are tagged {C}. It is
+intended that a user of OCI*ML should never need to worry about the C layer.
+Debug messages go to STDERR so that can be redirected e.g. $ ./myapp 2>log
+
+An error loading shared libraries is probably either because LD_LIBRARY_PATH 
+doesn't contain $ORACLE_HOME/lib OR you are running code compiled against 11g
+on a 10g system (vice versa should work). A fatal error on startup is probably 
+because ORACLE_HOME isn't set (correctly). 
+
+TODO (in no particular order):
+	- AQ enqueue and (blocking) dequeue*
+	- LOBs
+	- BFILEs*
+	- SAVEPOINTs*
+	- reconnection callback
+	- connection to a specific edition*
+	- RETURNING clause / OUT parameters for stored procedures
+	- array INSERT
+	- "make install" target that plays nicely with ocamlfind
+	- DESC that includes all metadata
+	- Proper documentation! 
+
+* Not in OraTcl
+
+Inspired by Oracaml[3]
+
+Questions, comments, suggestions etc please use the Wiki or Issues features on
+GitHub. 
+
+[1] http://download.oracle.com/docs/cd/B28359_01/appdev.111/b28395/toc.htm
+[2] http://oratcl.sourceforge.net/manpage.html
+[3] http://oracaml.sourceforge.net/
+
+(* EOF *)
