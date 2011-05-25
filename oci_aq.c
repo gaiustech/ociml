@@ -35,7 +35,9 @@ value caml_oci_get_tdo(value env, value handles, value type_name) {
 
   value v = caml_alloc_custom(&c_alloc_t_custom_ops, sizeof(c_alloc_t), 0, 1);
   C_alloc_val(v) = tdo;
-
+#ifdef DEBUG
+  debug("got TDO");
+#endif
   CAMLreturn(v);
 }
 
@@ -63,39 +65,19 @@ value caml_oci_string_assign_text(value env, value handles, value str) {
   CAMLreturn(v);
 }
 
-/* performs OCINumberFromInt() and returns a pointer to the memory */
-value caml_oci_number_assign_int(value handles, value intnum) {
-  CAMLparam2(handles, intnum);
-  oci_handles_t h = Oci_handles_val(handles);
-  int i = Int_val(intnum);
-  sword x;
-
-#ifdef DEBUG
-  char dbuf[256]; snprintf(dbuf, 255, "caml_oci_number_assign_int: '%d'", i); debug(dbuf);
-#endif
-  c_alloc_t t = {NULL};
-
-  /* malloc an OCINumber, write the int to it, and return a pointer to it */
-  t.ptr = (OCINumber*)malloc(sizeof(OCINumber));
-  x = OCINumberFromInt(h.err, &i, sizeof(int), OCI_NUMBER_SIGNED, (OCINumber*)&t.ptr);
-  CHECK_OCI(x, h);
-
-  value v = caml_alloc_custom(&c_alloc_t_custom_ops, sizeof(c_alloc_t), 0, 1);
-  C_alloc_val(v) = t;
-  
-  CAMLreturn(v);
-}
-
-value caml_oci_int_from_number(value handles, value cht) {
-  CAMLparam2(handles, cht);
+value caml_oci_int_from_number(value handles, value cht, value offset) {
+  CAMLparam3(handles, cht, offset);
   oci_handles_t h = Oci_handles_val(handles);
   c_alloc_t t = C_alloc_val(cht);
+  int o = Int_val(offset);
 
+  OCINumber* on = (OCINumber*)malloc(sizeof(OCINumber));
+  memcpy(&on, &t.ptr + o, sizeof(OCINumber));
   int test;
-  sword x = OCINumberToInt(h.err, (OCINumber*)&t.ptr, sizeof(int), OCI_NUMBER_SIGNED, &test);
+  sword x = OCINumberToInt(h.err, on, sizeof(int), OCI_NUMBER_SIGNED, &test);
   CHECK_OCI(x, h);
 #ifdef DEBUG
-  char dbuf[256]; snprintf(dbuf, 255, "caml_oci_int_from_number: retrieved number from pointer as %d", test); debug(dbuf);
+  char dbuf[256]; snprintf(dbuf, 255, "caml_oci_int_from_number: retrieved number from payload as %d", test); debug(dbuf);
 #endif
   CAMLreturn(Val_int(test));
 }
@@ -106,6 +88,7 @@ value caml_oci_string_from_string(value env, value cht) {
   OCIEnv* e = Oci_env_val(env);
   CAMLreturn(caml_copy_string((char*)OCIStringPtr(e, t.ptr)));
 }
+
 /* actually enqueue the message */
 value caml_oci_aq_enqueue(value handles, value queue_name, value message_tdo, value message, value null_message) {
   CAMLparam5(handles, queue_name, message_tdo, message, null_message);
@@ -118,7 +101,7 @@ value caml_oci_aq_enqueue(value handles, value queue_name, value message_tdo, va
   char dbuf[256]; snprintf(dbuf, 255, "caml_oci_aq_enqueue: enqueueing message on '%s'",  qn); debug(dbuf);
 #endif
 
-    sword x = OCIAQEnq(h.svc, h.err, (text*)qn, 0, 0, mt.ptr, (dvoid**)&m.ptr, (dvoid**)&nm.ptr, 0, 0);
+  sword x = OCIAQEnq(h.svc, h.err, (text*)qn, 0, 0, mt.ptr, (dvoid**)&m.ptr, (dvoid**)&nm.ptr, 0, 0);
   CHECK_OCI(x, h);
 #ifdef DEBUG
   debug("caml_oci_aq_enqueue: message enqueued successfully");

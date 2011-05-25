@@ -92,6 +92,44 @@ value caml_oci_size_of_pointer(value unit) {
   CAMLreturn(Val_int(sizeof(void*)));
 }
 
+/* return the size of an OCINumber - happens to be 22 bytes on my dev system */
+value caml_oci_size_of_number(value unit) {
+  CAMLparam1(unit);
+  int s = sizeof(OCINumber);
+  int packed_size = ((s / sizeof(void*)) + 1) * (sizeof(void*));
+#ifdef DEBUG
+  char dbuf[256]; snprintf(dbuf, 255, "caml_oci_size_of_number: actual size is %d, padding to %d", s, packed_size); debug(dbuf);
+#endif
+  CAMLreturn(Val_int(packed_size));
+}
+
+value caml_oci_write_int_at_offset(value handles, value cht, value offset, value newinteger) {
+  CAMLparam4(handles, cht, offset, newinteger);
+  oci_handles_t h = Oci_handles_val(handles);
+  c_alloc_t c = C_alloc_val(cht);
+  int o = Int_val(offset);
+  int ni = Int_val(newinteger); 
+  sword x;
+
+#ifdef DEBUG
+  char dbuf[256]; snprintf(dbuf, 255, "caml_oci_write_int_at_offset: creating OCINumber for %d at offset %d", ni, o); debug(dbuf);
+#endif
+  //OCINumber* on;
+  //OCIMemoryAlloc(h.ses, h.err, (dvoid**)&on, OCI_DURATION_STATEMENT, sizeof(OCINumber), OCI_MEMORY_CLEARED);
+  //OCINumberSetZero(h.err, on);
+  OCINumber on;
+#ifdef DEBUG
+  debug("allocated memory");
+#endif
+
+  x = OCINumberFromInt(h.err, &ni, sizeof(int), OCI_NUMBER_SIGNED, &on);
+  CHECK_OCI(x, h);
+
+  memcpy(c.ptr + o, &on, sizeof(OCINumber));
+
+  CAMLreturn(Val_unit);
+}
+
 /* write a pointer at offset bytes from cht.ptr */
 value caml_write_ptr_at_offset(value cht, value offset, value newpointer) {
   CAMLparam3(cht, offset, newpointer);

@@ -1,9 +1,9 @@
 open Ociml
 
-let lda = oralogon "gaius/abc123@xe";;
+let lda = oralogon "guy/abc123@blame";;
 let sth = oraopen lda;;
 
-orasql sth "alter session set events '10046 trace name context forever, level 12'";;
+(*orasql sth "alter session set events '10046 trace name context forever, level 12'";;*)
 oradebug true;;
 (*oraenqueue lda "int_q" "int_t" [|Integer 2|];;
 oraenqueue lda "int_q" "int_t" [|Integer 3|];;
@@ -17,7 +17,12 @@ oraenqueue lda "int2_queue" "int2_t" [|Integer 5; Integer 99|];;
 oracommit lda;;
 *)
 
-oraenqueue lda "message_queue" "message_t" [|Integer 15; Varchar "hello"|];;
-oracommit lda;;
+oraenqueue lda "message_queue" "message_t" [|Integer 15; Varchar "hello, world!"|];
+oracommit lda;
+
+(*for i = 1 to 100 do
+  oraenqueue lda "string_q" "string_t" [|Varchar "hellohellohellohellohellohellohellohellohellohello"|];
+  oracommit lda;
+done*)
 
 (* EOF *)

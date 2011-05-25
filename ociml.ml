@@ -61,11 +61,6 @@ type meta_c_alloc = {c_ptr:oci_ptr;
 		     bytes_alloc:int;
 		     mutable bytes_offset:int}
 
-type meta_aq_msg = {msg_type:string; (* type name in the database *)
-		    msg_tdo:oci_ptr; (* pointer to TDO *)
-		    msg_items:col_value array; (* the actual message *)
-		    item_ptrs:oci_ptr list;}
-
 (* various constants from oci.h *)
 let oci_attr_username           =  22
 let oci_attr_password           =  23 
@@ -143,16 +138,17 @@ external oci_get_int: oci_handles -> oci_ptr -> int = "caml_oci_get_int"
 (* C heap memory functions - oci_common.c *)
 external oci_alloc_c_mem: int -> oci_ptr = "caml_alloc_c_mem"
 external oci_size_of_pointer: unit -> int = "caml_oci_size_of_pointer"
+external oci_size_of_number: unit -> int = "caml_oci_size_of_number"
 external oci_constant_assign: oci_ptr -> int -> int -> unit = "c_write_int_at_offset"
 external oci_write_ptr_at_offset: oci_ptr -> int -> oci_ptr -> unit = "caml_write_ptr_at_offset"
 external oci_read_ptr_at_offset: oci_ptr -> int -> oci_ptr = "caml_read_ptr_at_offset"
+external oci_write_int_at_offset: oci_handles -> oci_ptr -> int -> int -> unit = "caml_oci_write_int_at_offset"
 
 (* AQ functions - oci_aq.c *)
 external oci_get_tdo_: oci_env -> oci_handles -> string -> oci_ptr = "caml_oci_get_tdo"
 external oci_string_assign: oci_env -> oci_handles -> string -> oci_ptr = "caml_oci_string_assign_text"
-external oci_number_assign: oci_handles -> int -> oci_ptr = "caml_oci_number_assign_int"
 external oci_aq_enqueue: oci_handles -> string -> oci_ptr -> oci_ptr -> oci_ptr -> unit = "caml_oci_aq_enqueue"
-external oci_int_from_number: oci_handles -> oci_ptr -> int = "caml_oci_int_from_number"
+external oci_int_from_number: oci_handles -> oci_ptr -> int -> int = "caml_oci_int_from_number"
 external oci_string_from_string: oci_env -> oci_ptr -> string = "caml_oci_string_from_string"
 
 (* public interface *)
@@ -426,47 +422,69 @@ let rec orafetchall_ sth acc =
 let orafetchall sth = 
   orafetchall_ sth []
 
-
 (* Get the TDO of the message type with global env, handles (already unpacked) and type name in 
    UPPERCASE - returns a pointer to it in the OCI object cache *)
 let oci_get_tdo ge lda tn =
   oci_get_tdo_ ge lda (String.uppercase tn)
 
 let oci_int_from_payload lda pa i =
-  let ip = oci_read_ptr_at_offset pa i in
-  oci_int_from_number lda.lda ip
+  oci_int_from_number lda.lda pa i
 
 let oci_string_from_payload pa i = 
   let sp = oci_read_ptr_at_offset pa i in
   oci_string_from_string global_env sp
 
+let calculate_aq_message_size size_of_pointer size_of_number payload =
+  let total = ref 0 in
+  Array.iter (fun x ->
+    match x with
+      |Integer v -> total := (!total + size_of_number)
+      |Number  v -> total := (!total + size_of_number)
+      |Varchar v -> total := (!total + size_of_pointer)
+      |_ -> debug("This datatype not yet supported in AQ messages")
+  ) payload;
+	!total
+
 (* build and enqueue an AQ message *)
-let oraenqueue lda queue_name message_type payload = 
-  let ps = oci_size_of_pointer () in           (* pointer size *)
-  let ni = Array.length payload in             (* payload items *)
-  let pa = oci_alloc_c_mem (ni * ps) in        (* payload array *)
-  let na = oci_alloc_c_mem ((ni + 1) * ps) in  (* null array *)
-  let mt = oci_get_tdo global_env lda.lda message_type in (* message TDO pointer - TDO cached by OCI anyway *)
-  oci_constant_assign na 0 0; (* put OCI_IND_NOTNULL from oro.h at position 0 (TDO) in the null array *)
+let oraenqueue_obj lda queue_name message_type payload = 
+  let ps = oci_size_of_pointer () in                                           (* pointer size - for OCIString *)
+  let ns = oci_size_of_number () in                                            (* number size - for OCINumber *)
+  let ni = Array.length payload in                                             (* number of payload items *)
+  let pa = oci_alloc_c_mem (calculate_aq_message_size ps ns payload) in        (* payload array *)
+  let na = oci_alloc_c_mem ((ni + 1) * ps) in                                  (* null array - fixed size *)
+  let mt = oci_get_tdo global_env lda.lda message_type in                      (* message TDO pointer *)
+  let co = ref 0 in                                                            (* current offset *)
+  oci_constant_assign na 0 0;                                                  (* put OCI_IND_NOTNULL from oro.h at position 0 
+										  (TDO) in the null array *)
   Array.iteri (fun i x ->
     match x with
       |Varchar v -> 
 	begin
 	  let s = oci_string_assign global_env lda.lda v in
-	  oci_write_ptr_at_offset pa (i * ps) s;   (* write OCIString at offset i in payload array *)
-	  debug(sprintf "read back string '%s' as '%s'" v (oci_string_from_payload pa (i*ps)));
-	  oci_constant_assign na ((i + 1) * ps) 0  (* write OCI_IND_NOTNULL at position i+1 in the null array *)
+	  oci_write_ptr_at_offset pa !co s;                                    (* write OCIString at current offset in 
+										  payload array *)
+	  debug(sprintf "read back string '%s' at offset %d as '%s'" v !co (oci_string_from_payload pa !co));
+	  co := (!co + ps);                                                    (* increment the offset by the size of a 
+										  pointer *)
+	  oci_constant_assign na ((i + 1) * ps) 0                              (* write OCI_IND_NOTNULL at position i+1 in 
+										  the null array *)
 	end
       |Integer n -> 
 	begin
-	  let s = oci_number_assign lda.lda n in
-	  oci_write_ptr_at_offset pa (i * ps) s; 
-	  debug(sprintf "read back int %d as %d\n" n (oci_int_from_payload lda pa (i * ps)));
+	  oci_write_int_at_offset lda.lda pa !co n;                        (* copy the entire OCINumber into the 
+										  payload *)
+	  debug(sprintf "read back int %d at offset %d as %d\n" n !co (oci_int_from_payload lda pa !co));
+	  co := (!co + ns);
 	  oci_constant_assign na ((i + 1) * ps) 0;
 	end
       | _ -> oci_constant_assign na ((i + 1) * ps) (-1) (* OCI_IND_NULL *)
   ) payload;
   oci_aq_enqueue lda.lda queue_name mt pa na;
   ()
+
+let oraenqueue lda queue_name message_type payload =
+  match message_type with
+    |"RAW" -> debug("Raw AQ not implemented yet")
+    |_     -> oraenqueue_obj lda queue_name message_type payload
 
 (* End of file *)
