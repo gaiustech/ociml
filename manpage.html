@@ -87,7 +87,7 @@
      <dd><p align=justify>This is a convenience function that does <code>oraparse</code> on the SQL text then immediately <code>oraexec</code>. It is not advised to build SQL statements as strings and use this function (use bind variables instead). But it is useful for SQL statements fixed at compile time, or for interactive use in <code>ocimlsh</code>.</p></dd>
      
      <dt><pre><b>orabindexec</b> <i>col-value array</i></pre></dt>
-     <dd><p align=justify>A convenience method to bind an entire row to a previously parsed statement handle and execute it, e.g:</p>
+     <dd><p align=justify>A convenience function to bind an entire row to a previously parsed statement handle and execute it, e.g:</p>
        <pre>
 	 let my_constants = [
 	     [|(Integer 3); (Datetime (localtime (time ()))); (Varchar "Square root 2");           (Number 1.41)|];
@@ -129,8 +129,8 @@
      <dt><pre><b>oradesc</b> <i>logon-handle table-name</i> &rarr; <i>col-type array</i></pre></dt>
      <dd><p align=justify>Describes a table, returning the same format as <code>oracols</code></p></dd>
      
-     <dt><pre><b>oraautocom</b> <i>[true|false]</i></pre></dt>
-<dd><p align=justify>Sets a mode in which DML statements are committed as soon as they are executed. This is presently a global setting; it may change to per-connection in a future version.</p></dd>
+     <dt><pre><b>oraautocom</b> <i>logon-handle [true|false]</i></pre></dt>
+<dd><p align=justify>Sets a mode in which DML statements are committed as soon as they are executed. This does not affect the <code>oraenqueue</code> or <code>oradequeue</code> functions.</p></dd>
      
      <dt><pre><b>oradebug</b> <i>[true|false]</i></pre></dt>
      <dd><p align=justify>Enables or disables a verbose logging mode in the OCI*ML module. This is sent to STDERR so it can easily be redirected in an application that has this mode enabled, for example:</p>
