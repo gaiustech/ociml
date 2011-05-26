@@ -23,7 +23,7 @@ oracommit lda;
 Array.map (fun x -> print_endline (orastring (Col_value x))) (oradequeue lda "message_queue" "message_t" [|Integer 0; Varchar ""|]);
 oracommit lda;*)
 
-for i = 1 to 1000 do
+for i = 1 to 10 do
   oradequeue lda "string_q" "string_t" [|Varchar ""|];
   oracommit lda;
 done

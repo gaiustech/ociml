@@ -152,7 +152,7 @@ external oci_aq_enqueue: oci_handles -> string -> oci_ptr -> oci_ptr -> oci_ptr 
 external oci_int_from_number: oci_handles -> oci_ptr -> int -> int = "caml_oci_int_from_number"
 external oci_flt_from_number: oci_handles -> oci_ptr -> int -> float = "caml_oci_flt_from_number"
 external oci_string_from_string: oci_env -> oci_ptr -> string = "caml_oci_string_from_string"
-external oci_aq_dequeue: oci_handles -> string -> oci_ptr -> oci_ptr -> oci_ptr -> unit = "caml_oci_aq_dequeue"
+external oci_aq_dequeue: oci_env -> oci_handles -> string -> oci_ptr -> int -> oci_ptr = "caml_oci_aq_dequeue"
 
 (* public interface *)
 module type OCIML =
@@ -501,16 +501,16 @@ let oradequeue_obj lda queue_name message_type dummy_payload =
   let ps = oci_size_of_pointer () in                                           (* pointer size - for OCIString *)
   let ns = oci_size_of_number () in                                            (* number size - for OCINumber *)
   let ni = Array.length dummy_payload in                                       (* number of payload items *)
-  let pa = oci_alloc_c_mem (calculate_aq_message_size ps ns dummy_payload) in  (* payload array *)
-  let na = oci_alloc_c_mem ((ni + 1) * ps) in                                  (* null array - fixed size - need to handle this? *)
+  let pl = (calculate_aq_message_size ps ns dummy_payload) in                  (* payload length in bytes *)
   let mt = oci_get_tdo global_env lda.lda message_type in                      (* message TDO pointer *)
   let co = ref 0 in                                                            (* current offset *)
   let rv = Array.make ni Null in                                               (* array returned from function *)
-  oci_aq_dequeue lda.lda queue_name mt pa na;
+  let pa = oci_aq_dequeue global_env lda.lda queue_name mt pl in                          (* payload array *)
   Array.iteri (fun i x -> 
     match x with 
       |Varchar z ->
 	begin
+	  debug(sprintf "oradequeue_obj: found Varchar, current offset is %d" !co);
 	  rv.(i) <- Varchar (oci_string_from_payload pa !co);
 	  co := (!co + ps);
 	  debug(sprintf "oradequeue_obj: dequeued string '%s'" (orastring (Col_value rv.(i))))

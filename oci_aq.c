@@ -127,35 +127,33 @@ value caml_oci_aq_enqueue(value handles, value queue_name, value message_tdo, va
 }
 
 /* dequeue a message */
-value caml_oci_aq_dequeue(value handles, value queue_name, value message_tdo, value message, value null_message) {
-  CAMLparam5(handles, queue_name, message_tdo, message, null_message);
+value caml_oci_aq_dequeue(value env, value handles, value queue_name, value message_tdo, value message_size) {
+  CAMLparam5(env, handles, queue_name, message_tdo, message_size);
+  OCIEnv* e = Oci_env_val(env);
   oci_handles_t h = Oci_handles_val(handles);
   char* qn = String_val(queue_name);
   c_alloc_t mt = C_alloc_val(message_tdo);
-  c_alloc_t m = C_alloc_val(message);
-  c_alloc_t nm = C_alloc_val(null_message);
+  int mz = Int_val(message_size);
   sword x;
 #ifdef DEBUG
   char dbuf[256]; snprintf(dbuf, 255, "caml_oci_aq_dequeue: dequeueing message from '%s'",  qn); debug(dbuf);
 #endif
 
-  /* first pass - let OCI allocate some memory */
-  dvoid* payload = NULL;
-  snprintf(dbuf, 255, "before: address of payload is %p", payload); debug(dbuf);
-  x = OCIAQDeq(h.svc, h.err, (text*)qn, 0, 0, mt.ptr, &payload, (dvoid**)&nm.ptr, 0, 0);
-  snprintf(dbuf, 255, "after: address of payload is %p", payload); debug(dbuf);
+  void* ind_buf = NULL;
+  c_alloc_t msg_buf = {NULL};
+  x = OCIAQDeq(h.svc, h.err, (text*)qn, 0, 0, mt.ptr, (dvoid**)&msg_buf.ptr, (dvoid**)&ind_buf, 0, 0);
   CHECK_OCI(x, h);
 
-  /* second pass - actually dequeue */
-  x = OCIAQDeq(h.svc, h.err, (text*)qn, 0, 0, mt.ptr, &payload, (dvoid**)&nm.ptr, 0, 0);
-  CHECK_OCI(x, h);
-  
-  memcpy(&m.ptr, payload, sizeof(void*));
-
+  void* deq = malloc(mz);
+  memcpy(&deq, msg_buf.ptr, mz);
+  snprintf(dbuf, 255, "Text: %s\n", OCIStringPtr(e, deq)); debug(dbuf);
 #ifdef DEBUG
-  debug("caml_oci_aq_enqueue: message dequeued successfully");
+  snprintf(dbuf, 255, "pointer deq=%p", deq); debug(dbuf);
 #endif
-  CAMLreturn(Val_unit);
+  
+  value v = caml_alloc_custom(&c_alloc_t_custom_ops, sizeof(c_alloc_t), 0, 1);
+  C_alloc_val(v) = msg_buf;
+  CAMLreturn(v);
 }
 
 /* end of file */
