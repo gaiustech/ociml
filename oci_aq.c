@@ -75,12 +75,12 @@ value caml_oci_int_from_number(value handles, value cht, value offset) {
   memcpy(&on, &t.ptr + o, sizeof(OCINumber));
   int test;
 #ifdef DEBUG
-  debug("caml_oci_int_from_number: entered");
+  char dbuf[256]; snprintf(dbuf, 255, "caml_oci_int_from_number: entered t.ptr=%p", t.ptr); debug(dbuf);
 #endif
   sword x = OCINumberToInt(h.err, on, sizeof(int), OCI_NUMBER_SIGNED, &test);
   CHECK_OCI(x, h);
 #ifdef DEBUG
-  char dbuf[256]; snprintf(dbuf, 255, "caml_oci_int_from_number: retrieved number from payload as %d", test); debug(dbuf);
+  snprintf(dbuf, 255, "caml_oci_int_from_number: retrieved number from payload as %d", test); debug(dbuf);
 #endif
   CAMLreturn(Val_int(test));
 }
@@ -147,11 +147,9 @@ value caml_oci_aq_dequeue(value env, value handles, value queue_name, value mess
   x = OCIAQDeq(h.svc, h.err, (text*)qn, 0, 0, mt.ptr, (dvoid**)&msg_buf.ptr, (dvoid**)&ind_buf, 0, 0);
   CHECK_OCI(x, h);
 
-  void* deq = malloc(mz);
-  memcpy(&deq, msg_buf.ptr, mz);
-  //snprintf(dbuf, 255, "Text: %s\n", OCIStringPtr(e, deq)); debug(dbuf);
 #ifdef DEBUG
-  snprintf(dbuf, 255, "pointer deq=%p size=%d", deq, mz); debug(dbuf);
+  snprintf(dbuf, 255, "pointer msg_buf.ptr=%p size=%d", msg_buf.ptr, mz); debug(dbuf);
+  //snprintf(dbuf, 255, "Text: %s\n", OCIStringPtr(e, (deq+24))); debug(dbuf);
 #endif
   
   value v = caml_alloc_custom(&c_alloc_t_custom_ops, sizeof(c_alloc_t), 0, 1);
