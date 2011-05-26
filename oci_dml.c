@@ -25,8 +25,6 @@
 #define caml_release_runtime_system caml_enter_blocking_section
 #endif
 
-#undef DEBUG
-
 static struct custom_operations oci_custom_ops = {"oci_custom_ops", NULL, NULL, NULL, NULL, NULL};
 
 /* parse a statement for execution */

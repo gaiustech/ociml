@@ -13,6 +13,18 @@
 #include <ocidfn.h>
 #include "oci_wrapper.h"
 
+#if OCAML_VERSION_MINOR >= 12
+#include <caml/threads.h>
+#else
+#include <caml/signals.h>
+#endif 
+
+/* from threads.h in 3.12 only */
+#ifndef caml_acquire_runtime_system
+#define caml_acquire_runtime_system caml_leave_blocking_section
+#define caml_release_runtime_system caml_enter_blocking_section
+#endif
+
 /* associate callback with datatype */
 static struct custom_operations c_alloc_t_custom_ops = {
   "c_alloc_t_custom_ops", &caml_free_alloc_t, NULL, NULL, NULL, NULL}; 
@@ -130,11 +142,11 @@ value caml_oci_aq_enqueue(value handles, value queue_name, value message_tdo, va
 /* dequeue a message */
 value caml_oci_aq_dequeue(value env, value handles, value queue_name, value message_tdo, value message_size) {
   CAMLparam5(env, handles, queue_name, message_tdo, message_size);
-  OCIEnv* e = Oci_env_val(env);
+  //OCIEnv* e = Oci_env_val(env);
   oci_handles_t h = Oci_handles_val(handles);
   char* qn = String_val(queue_name);
   c_alloc_t mt = C_alloc_val(message_tdo);
-  int mz = Int_val(message_size);
+  //int mz = Int_val(message_size);
   sword x;
 #ifdef DEBUG
   char dbuf[256]; snprintf(dbuf, 255, "caml_oci_aq_dequeue: dequeueing message from '%s'",  qn); debug(dbuf);
@@ -142,7 +154,9 @@ value caml_oci_aq_dequeue(value env, value handles, value queue_name, value mess
 
   void* ind_buf = NULL;
   c_alloc_t msg_buf = {NULL};
+  caml_release_runtime_system();
   x = OCIAQDeq(h.svc, h.err, (text*)qn, 0, 0, mt.ptr, (dvoid**)&msg_buf.ptr, (dvoid**)&ind_buf, 0, 0);
+  caml_acquire_runtime_system();
   CHECK_OCI(x, h);
 
 #ifdef DEBUG
