@@ -13,8 +13,6 @@
 #include <ocidfn.h>
 #include "oci_wrapper.h"
 
-#define DEBUG
-
 /* associate callback with datatype */
 static struct custom_operations c_alloc_t_custom_ops = {
   "c_alloc_t_custom_ops", &caml_free_alloc_t, NULL, NULL, NULL, NULL}; 

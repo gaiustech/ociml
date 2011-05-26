@@ -12,8 +12,6 @@
 #include <time.h>
 #include "oci_wrapper.h"
 
-#define DEBUG
-
 /* write a timestamped log message {C} for C code */
 void debug(char* msg) {
   char* datebuf = (char*)malloc(32);

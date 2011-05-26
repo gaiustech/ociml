@@ -12,8 +12,6 @@
 #include <oci.h>
 #include "oci_wrapper.h"
 
-#undef DEBUG
-
 /* Create an OCI environment */
 OCIEnv* global_env;
 

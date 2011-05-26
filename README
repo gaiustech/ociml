@@ -1,4 +1,4 @@
-(* OCI*ML 0.1 *)
+(* OCI*ML 0.2 *)
 
 A simple Oracle API for OCaml. See blog for latest: http://gaiustech.wordpress.com 
 
@@ -64,7 +64,6 @@ on a 10g system (vice versa should work). A fatal error on startup is probably
 because ORACLE_HOME isn't set (correctly). 
 
 TODO (in no particular order):
-	- AQ enqueue and (blocking) dequeue*
 	- LOBs
 	- BFILEs*
 	- SAVEPOINTs*
