@@ -152,6 +152,25 @@
 	 </pre>
      </p></dd>
      
+     <dt><pre><b>oraenqueue</b> <i>logon-handle queue-name queue-type col-value array</i></pre></dt>
+     <dd><p align=justify>Enqueues a message to the AQ mechanism. The type must match the type of the underlying queue payload type. Must be committed to actually submit the message, e.g.
+	 <pre>
+	   # open Ociml;;
+	   # let lda = oralogon "gaius/abc123";;
+	   # oraenqueue lda "message_queue" "message_t" [|Integer 99; Varchar "hello, world!"|];;
+	   # oracommit lda;;
+	 </pre>
+	 Note that <code>oraautocom</code> does not affect this command or <code>oradequeue</code>. Also see the Oracle AQ documentation.
+     </p></dd>
+
+     <dt><pre><b>oradequeue</b> <i>logon-handle queue-name queue-type col-value array</i></pre></dt>
+     <dd><p align=justify>Dequeues a message from the AQ mechanism. Must be committed to actually remove the message from the queue, e.g.
+	 <pre>
+	   # oradequeue lda "message_queue" "message_t" [|Integer 0; Varchar ""|];;
+	   - : Ociml.col_value array = [|Integer 99; Varchar "hello, world!"|]
+	   # oracommit;;
+	 </pre>
+	 The array passed to this command is a dummy with placeholders for the appropriate types so that OCI*ML can do the conversion from the underlying C struct.
      </dl></dd></dl>
 
      <h2>ENVIRONMENT VARIABLES</h2>
