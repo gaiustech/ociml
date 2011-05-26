@@ -517,6 +517,7 @@ let oradequeue_obj lda queue_name message_type dummy_payload =
 	  end
       |Integer z ->
 	begin
+	  debug(sprintf "oradequeue_obj: found Integer, current offset is %d" !co);
 	  rv.(i) <- Integer (oci_int_from_payload lda pa !co);
 	  co := (!co + ns);
 	  end

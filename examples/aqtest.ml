@@ -17,15 +17,15 @@ oraenqueue lda "int2_queue" "int2_t" [|Integer 5; Integer 99|];;
 oracommit lda;;
 *)
 
-(*oraenqueue lda "message_queue" "message_t" [|Integer 15; Varchar "hello, world!"|];
+oraenqueue lda "message_queue" "message_t" [|Integer 15; Varchar "hello, world!"|];
 oracommit lda;
 
-Array.map (fun x -> print_endline (orastring (Col_value x))) (oradequeue lda "message_queue" "message_t" [|Integer 0; Varchar ""|]);
-oracommit lda;*)
+oradequeue lda "message_queue" "message_t" [|Integer 0; Varchar ""|];
+oracommit lda;
 
-for i = 1 to 10 do
+(*for i = 1 to 10 do
   oradequeue lda "string_q" "string_t" [|Varchar ""|];
   oracommit lda;
-done
+done*)
 
 (* EOF *)
