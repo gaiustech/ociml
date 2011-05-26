@@ -96,6 +96,7 @@
 	 in
 	     List.iter (orabindexec sth) my_constants; 
        </pre>
+       In the future this will most likely become true bulk DML, however the interface will not change.
      </dd>
 
  <dt><pre><b>orafetch</b> <i>statement-handle</i> &rarr; <i>col-value array</i></pre></dt>
@@ -110,7 +111,7 @@
      </dd>
 
      <dt><pre><b>orafetchall</b> <i>statement-handle</i> &rarr; <i>col-value array list</i></pre></dt>
-<dd><p align=justify>Convenience function to <code>orafetch</code> an entire result set and return it as a list of arrays of column values. This can be processed with <code>List.map</code> or <code>List.iter</code>. It is most useful to abstract away the exception handling, for result sets that can easily fit into memory. </p></dd>
+<dd><p align=justify>Convenience function to <code>orafetch</code> an entire result set and return it as a list of arrays of column values. This can be processed with <code>List.map</code> or <code>List.iter</code>. It is most useful to abstract away the exception handling, for result sets that can easily fit into memory.  In the future this will most likely become true bulk DML, however the interface will not change. </p></dd>
 
      <dt><pre><b>oracols</b> <i>statement-handle</i> &rarr; <i>col-type array</i></pre></dt>
      <dd><p align=justify>Returns an array containing the column metadata for the last executed <code>SELECT</code> statement on a given statement handle, e.g:</p>
@@ -163,7 +164,7 @@
 	 Note that <code>oraautocom</code> does not affect this command or <code>oradequeue</code>. Also see the Oracle AQ documentation.
      </p></dd>
 
-     <dt><pre><b>oradequeue</b> <i>logon-handle queue-name queue-type col-value array</i></pre></dt>
+     <dt><pre><b>oradequeue</b> <i>logon-handle queue-name queue-type col-value array &rarr; col-value array</i></pre></dt>
      <dd><p align=justify>Dequeues a message from the AQ mechanism. Must be committed to actually remove the message from the queue, e.g.
 	 <pre>
 	   # oradequeue lda "message_queue" "message_t" [|Integer 0; Varchar ""|];;
