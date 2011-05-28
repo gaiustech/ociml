@@ -4,9 +4,9 @@
     </head>
   <body>
      <h2>NAME</h2>
-     <dl><dd>OCI*ML - Oracle database access commands for OCaml.</dd></dl>
+     <dl><dd>OCI*ML - Oracle database access commands for OCaml. </dd></dl>
      <h2>INTRODUCTION</h2>
-     <dl><dd><p align=justify>OCI*ML is an extension to the OCaml language designed to provide access to an Oracle Database server. Its interface is closely based on OraTcl which provides the same functionality for the Tcl/Tk language, although they have no code in common, and not all OraTcl functionality is implemented (yet). The name follows the Oracle convention (e.g. SQL*Plus, Pro*C) as it is implemented using OCI, the Oracle Call Interface. Programmers using OCI*ML should be familiar with basic concepts of database programming, such as connections, cursors and result sets.</p>
+     <dl><dd><p align=justify>OCI*ML is an extension to the OCaml language designed to provide access to an Oracle Database server. Its interface is closely based on OraTcl which provides the same functionality for the Tcl/Tk language, although they have no code in common, and not all OraTcl functionality is implemented (yet). The name follows the Oracle convention (e.g. SQL*Plus, Pro*C) as it is implemented using OCI, the Oracle Call Interface. Programmers using OCI*ML should be familiar with basic concepts of database programming, such as connections, cursors and result sets. This manpage documents version 0.2.1.</p>
 	 
 	 <p align=justify>At present, 4 major datatypes are supported: 
 	   <ul>
@@ -86,7 +86,7 @@
      <dt><pre><b>orasql</b> <i>statement-handle statement-text</i></pre></dt>
      <dd><p align=justify>This is a convenience function that does <code>oraparse</code> on the SQL text then immediately <code>oraexec</code>. It is not advised to build SQL statements as strings and use this function (use bind variables instead). But it is useful for SQL statements fixed at compile time, or for interactive use in <code>ocimlsh</code>.</p></dd>
      
-     <dt><pre><b>orabindexec</b> <i>col-value array</i></pre></dt>
+     <dt><pre><b>orabindexec</b> <i>col-value array list</i></pre></dt>
      <dd><p align=justify>A convenience function to bind an entire row to a previously parsed statement handle and execute it, e.g:</p>
        <pre>
 	 let my_constants = [
@@ -94,9 +94,9 @@
 	     [|(Integer 4); (Datetime (localtime (time ()))); (Varchar "Speed of light");          (Number 300000000.)|];
 	     [|(Integer 5); (Datetime (localtime (time ()))); (Varchar "Acceleration of gravity"); (Number 9.8)|]]
 	 in
-	     List.iter (orabindexec sth) my_constants; 
+	     orabindexec sth my_constants; 
        </pre>
-       In the future this will most likely become true bulk DML, in which case the interface will change so there is no need to iterate over the list.
+       In the future this will most likely become true bulk DML.
      </dd>
 
  <dt><pre><b>orafetch</b> <i>statement-handle</i> &rarr; <i>col-value array</i></pre></dt>
@@ -112,6 +112,9 @@
 
      <dt><pre><b>orafetchall</b> <i>statement-handle</i> &rarr; <i>col-value array list</i></pre></dt>
 <dd><p align=justify>Convenience function to <code>orafetch</code> an entire result set and return it as a list of arrays of column values. This can be processed with <code>List.map</code> or <code>List.iter</code>. It is most useful to abstract away the exception handling, for result sets that can easily fit into memory.  In the future this will most likely become true bulk DML, however the interface will not change. </p></dd>
+
+     <dt><pre><b>oraprefetch</b> <i>statement-handle rows</i></pre></dt>
+     <dd><p align=justify>Sets the number of rows to pre-fetch in <code>SELECT</code> statements. This has the potential to significantly reduce the number of round-trips required e.g. to <code>orafetchall</code>. Preliminary tests suggest that a 20&times; speed up is possible.</p></dd>
 
      <dt><pre><b>oracols</b> <i>statement-handle</i> &rarr; <i>col-type array</i></pre></dt>
      <dd><p align=justify>Returns an array containing the column metadata for the last executed <code>SELECT</code> statement on a given statement handle, e.g:</p>
@@ -172,6 +175,11 @@
 	   # oracommit;;
 	 </pre>
 	 The array passed to this command is a dummy with placeholders for the appropriate types so that OCI*ML can do the conversion from the underlying C struct.
+     </p></dd>
+
+     <dt><pre><b>oradeqtime</b> <i>logon-handle time</i></pre></dt>
+     <dd><p align=justify>Sets the time in seconds to wait for a message dequeue. Exception <code>Not_found</code> will be raised if no message was received.</p></dd>
+
      </dl></dd></dl>
 
      <h2>ENVIRONMENT VARIABLES</h2>
@@ -193,8 +201,17 @@
        <dd><p align=justify>Alternate location for the file <code>TNSNAMES.ORA</code>, default is <code>$ORACLE_HOME/network/admin</code></p></dd>
        </dl>
      </dd></dl>
+
+     <h2>FILES</h2>
+     <dl><dd>
+	 <dl>
+	   <dt><b><code>.ocamlinit</code></b></dt>
+	   <dd>Initialization file setting up the module in the custom toplevel</dd>
+	 </dl>
+     </dd></dl>
+
      <h2>AUTHOR</h2>
-     <dl><dd>Gaius Hammond <code>&lt;ociml@gaius.org.uk&gt;</code> May 20<sup>th</sup> 2011</dd></dl>
+     <dl><dd>Gaius Hammond <code>&lt;ociml@gaius.org.uk&gt;</code> May 28<sup>th</sup> 2011</dd></dl>
 
      <h2>ACKNOWLEDGEMENTS</h2>
       <dl><dd>With thanks to the <a href="http://oratcl.sourceforge.net/">OraTcl project</a></dd></dl>
