@@ -28,7 +28,7 @@ typedef struct {
 #define Oci_bindhandle_val(v) (*((OCIBind**)      Data_custom_val(v)))
 #define Oci_date_val(v)       (*((OCIDate**)      Data_custom_val(v)))
 #define Oci_defhandle_val(v)  (*((oci_define_t*)  Data_custom_val(v)))
-#define C_alloc_val(v) (*((c_alloc_t*) Data_custom_val(v)))
+#define C_alloc_val(v)        (*((c_alloc_t*) Data_custom_val(v)))
 
 /* declare common C functions (not called directly from OCaml) */
 void debug(char* msg);

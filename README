@@ -1,4 +1,4 @@
-(* OCI*ML 0.2 *)
+(* OCI*ML 0.2.1 *)
 
 A simple Oracle API for OCaml. See blog for latest: http://gaiustech.wordpress.com 
 
@@ -42,13 +42,15 @@ ociml.cmi will need to be in the same directory, or include the directory, e.g.
 
 $ ./Projects/ociml/ocimlsh -I ./Projects/ociml/
 
+Also try the included .ocamlinit, which sets up ocimlsh conveniently.
+
 Currently only the basic DML operations (parse, bind, execute and fetch) are 
 available, in addition to connection and transaction control. This is sufficient 
 to connect to Oracle and run any SQL statements, returning the result set to 
 OCaml code for further processing. See the file ociml_sample.ml for further
 details. It is assumed that you are basically familiar with Oracle and are
 looking for a way to get "real work" done in OCaml as an alternative to say 
-Perl.
+Perl. Also basic AQ enqueue and dequeue are supported.
 
 The library is structured as a thin wrapper around the OCI[1] library in C, on 
 top of which is a higher level library patterned after OraTcl[2], as much as 

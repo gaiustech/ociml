@@ -22,6 +22,7 @@ type meta_handle = {connection_id:int;
 		    mutable rollbacks:int;
 		    mutable lda_op_time:float;
 		    mutable auto_commit:bool;
+		    mutable deq_timeout:int;
 		    lda:oci_handles}
 
 (* Variant for the basic data types - datetime crosses back and forth as epoch, 
@@ -48,6 +49,7 @@ type meta_statement = {statement_id:int;
 		       mutable binds:int;
 		       mutable execs:int;
 		       mutable sth_op_time:float;
+		       mutable prefetch_rows:int;
 		       mutable rows_affected:int;
 		       mutable num_cols:int;
 		       bound_vals:(bind_spec, oci_bindhandle) Hashtbl.t;
@@ -62,6 +64,7 @@ type meta_c_alloc = {c_ptr:oci_ptr;
 		     mutable bytes_offset:int}
 
 (*{{{ various constants from oci.h *)
+
 let oci_attr_username           =  22
 let oci_attr_password           =  23 
 let oci_attr_client_identifier  = 278 
@@ -80,6 +83,7 @@ let oci_sqlt_flt                = 4   (* floating point number *)
 let oci_sqlt_num                = 2   (* ORANET numeric *)
 let oci_sqlt_dat                = 12  (* Oracle 7-byte date *)
 let oci_sqlt_chr                = 1   (* ORANET character string *)
+
 (*}}}*)
 let date_to_double t =
   fst (mktime t)
@@ -129,6 +133,8 @@ external oci_bind_date_by_name: oci_handles -> oci_statement -> oci_bindhandle -
 external oci_get_column_types: oci_handles -> oci_statement -> col_type array = "caml_oci_get_column_types"
 external oci_define: oci_handles -> oci_statement -> int -> (int * bool) -> int -> define_spec = "caml_oci_define"
 external oci_fetch: oci_handles -> oci_statement -> unit = "caml_oci_fetch"
+external oci_set_prefetch: oci_handles -> oci_statement -> int -> unit = "caml_oci_set_prefetch"
+external oci_get_rows_affected: oci_handles -> oci_statement -> int = "caml_oci_get_rows_affected"
 (*}}}*)
 
 (*{{{ type conversions - oci_types.c *)
@@ -149,6 +155,7 @@ external oci_write_int_at_offset: oci_handles -> oci_ptr -> int -> int -> unit =
 external oci_write_flt_at_offset: oci_handles -> oci_ptr -> int -> float -> unit = "caml_oci_write_flt_at_offset"
 
 (*{{{ AQ functions - oci_aq.c *)
+
 external oci_get_tdo_: oci_env -> oci_handles -> string -> oci_ptr = "caml_oci_get_tdo"
 external oci_string_assign: oci_env -> oci_handles -> string -> oci_ptr = "caml_oci_string_assign_text"
 external oci_aq_enqueue: oci_handles -> string -> oci_ptr -> oci_ptr -> oci_ptr -> unit = "caml_oci_aq_enqueue"
@@ -156,7 +163,8 @@ external oci_int_from_number: oci_handles -> oci_ptr -> int -> int = "caml_oci_i
 external oci_flt_from_number: oci_handles -> oci_ptr -> int -> float = "caml_oci_flt_from_number"
 external oci_string_from_string: oci_env -> oci_ptr -> string = "caml_oci_string_from_string"
 external oci_aq_dequeue: oci_env -> oci_handles -> string -> oci_ptr -> int -> oci_ptr = "caml_oci_aq_dequeue"
-(*}}}*)
+
+(*}}}*) 
 (* public interface *)
 module type OCIML =
 sig
@@ -172,7 +180,7 @@ sig
   val oradebug:     bool -> unit
   val orasql:       meta_statement -> string -> unit
   val oraautocom:   meta_handle -> unit
-  val orabindexec:  meta_statement -> col_value array -> unit
+  val orabindexec:  meta_statement -> col_value array list -> unit
   val orastring:    stringable -> string
   val oradesc:      meta_handle -> string -> string array
   val oracols:      meta_statement -> string array
@@ -180,6 +188,9 @@ sig
   val oranullval:   col_value -> unit
   val oraenqueue:   meta_handle -> string -> string -> col_value array -> unit
   val oradequeue:   meta_handle -> string -> string -> col_value array -> col_value array
+  val oradeqtime:   meta_handle -> int -> unit
+  val oraprefetch:  meta_statement -> int -> unit
+  val oraprompt:    string
 end
 
 (* actual implementation *)
@@ -194,8 +205,15 @@ let oradebug x = internal_oradebug := x; ()
 let debug msg = match !internal_oradebug with |true -> log_message msg |false -> ()
 
 (* autocommit mode - default false *)
-let oraautocom lda x = 
-  lda.auto_commit <- x; ()
+let oraautocom lda x = lda.auto_commit <- x; ()
+
+(* time to wait for a dequeue *)
+let oradeqtime lda x = lda.deq_timeout <- x; ()
+
+(* rows to prefetch - set at the level of a statement *)
+let oraprefetch sth x = sth.prefetch_rows <- x; ()
+
+let oraprompt = ref "not connected > "
 
 (* set this to what you want NULLs to be returned as, e.g. Integer 0 or Varchar "" or Datetime 0.0 even! *)
 let internal_oranullval = ref (Integer 0)
@@ -284,16 +302,18 @@ let oraparse sth sqltext =
    statement is parsed will also result in an exception being thrown *)
 let oraexec sth =
   let t1 = gettimeofday () in
+  oci_set_prefetch sth.parent_lda.lda sth.sth sth.prefetch_rows;
   oci_statement_execute sth.parent_lda.lda sth.sth sth.parent_lda.auto_commit false;
   let t2 = gettimeofday () -. t1 in
   debug (sprintf "statement handle %d executed in %fs" sth.statement_id t2);
   sth.execs <- (sth.execs + 1);
+  sth.rows_affected <- oci_get_rows_affected sth.parent_lda.lda sth.sth;
   sth.sth_op_time <- t2;
   ()
 
 (* quick convenient function for binding an array of col_values to an sth and executing *)
-let orabindexec sth cva = 
-  Array.iteri (fun i v -> orabind sth (Pos (i + 1)) v) cva;
+let orabindexec sth cval = 
+  List.iter (fun cva -> Array.iteri (fun i v -> orabind sth (Pos (i + 1)) v) cva) cval;
   oraexec sth;
   ()
 
@@ -317,7 +337,7 @@ let oraopen lda =
   let c = !statement_seq in
   debug (sprintf "allocated statement id %d on connection id %d" c lda.connection_id);
   {statement_id=c; 
-   parses=0; binds=0; execs=0; sth_op_time=0.0; rows_affected=0; num_cols=0; 
+   parses=0; binds=0; execs=0; sth_op_time=0.0; prefetch_rows=1; rows_affected=0; num_cols=0; 
    bound_vals=(Hashtbl.create 10); 
    defined_vals=(Hashtbl.create 10); 
    oci_ptrs=(Hashtbl.create 10); 
@@ -337,13 +357,15 @@ let oralogon connstr =
   let c = !handle_seq in 
   let t2 = (gettimeofday () -. t1) in
   debug (sprintf "established connection %d as %s@%s in %fs" c username database t2);
-  {connection_id=c; commits=0; rollbacks=0; auto_commit=false; lda_op_time=t2; lda=h}
+  oraprompt := (sprintf "connected to %s@%s > " username database);
+  {connection_id=c; commits=0; rollbacks=0; auto_commit=false; deq_timeout=(-1); lda_op_time=t2; lda=h}
 
 (* Disconnect from Oracle and release the memory. Global env is still allocated *)
 let oralogoff lda =
   oci_session_end lda.lda;
   oci_server_detach lda.lda;
   oci_free_handles lda.lda;
+  oraprompt := "not connected > ";
   debug (sprintf "disconnected %d" lda.connection_id);
   ()
 
@@ -432,6 +454,7 @@ let orafetchall sth =
 (*}}}*)
 
 (*{{{ 0.2 functionality - object type AQ *)
+
 (* Get the TDO of the message type with global env, handles (already unpacked) and type name in 
    UPPERCASE - returns a pointer to it in the OCI object cache *)
 let oci_get_tdo ge lda tn =
@@ -506,11 +529,10 @@ let oradequeue_obj lda queue_name message_type dummy_payload =
   let ps = oci_size_of_pointer () in                                           (* pointer size - for OCIString *)
   let ns = oci_size_of_number () in                                            (* number size - for OCINumber *)
   let ni = Array.length dummy_payload in                                       (* number of payload items *)
-  let pl = (calculate_aq_message_size ps ns dummy_payload) in                  (* payload length in bytes *)
   let mt = oci_get_tdo global_env lda.lda message_type in                      (* message TDO pointer *)
   let co = ref 0 in                                                            (* current offset *)
   let rv = Array.make ni Null in                                               (* array returned from function *)
-  let pa = oci_aq_dequeue global_env lda.lda queue_name mt pl in                          (* payload array *)
+  let pa = oci_aq_dequeue global_env lda.lda queue_name mt lda.deq_timeout in (* payload array *)
   Array.iteri (fun i x -> 
     match x with 
       |Varchar z ->
@@ -525,15 +547,15 @@ let oradequeue_obj lda queue_name message_type dummy_payload =
 	  debug(sprintf "oradequeue_obj: found Integer, current offset is %d" !co);
 	  rv.(i) <- Integer (oci_int_from_payload lda pa !co);
 	  co := (!co + ns);
-	  end
+	end
       |Number z ->
 	begin
 	  rv.(i) <- Number (oci_flt_from_payload lda pa !co);
 	  co := (!co + ns);
 	end;
       |_ -> debug("dequeue for this type not supported yet");
-  ) dummy_payload;
-    rv
+    ) dummy_payload;
+  rv
     
 let oraenqueue lda queue_name message_type payload =
   match message_type with
@@ -541,10 +563,15 @@ let oraenqueue lda queue_name message_type payload =
     |_     -> oraenqueue_obj lda queue_name message_type payload
 
 let oradequeue lda queue_name message_type payload =
-  match message_type with
-    |"RAW" -> debug("Raw AQ not implemented yet"); [|Null|];
-    |_     -> oradequeue_obj lda queue_name message_type payload
-
+  try
+    match message_type with
+      |"RAW" -> debug("Raw AQ not implemented yet"); [|Null|];
+      |_     -> oradequeue_obj lda queue_name message_type payload
+  with
+      Oci_exception (e_code, e_desc) ->
+	match e_code with
+	  |25228 -> raise Not_found
+	  |_     -> raise (Oci_exception (e_code, e_desc))
 (*}}}*)
 
 (* End of file *)

@@ -155,4 +155,35 @@ value caml_oci_fetch(value handles, value stmt) {
   CAMLreturn(Val_unit);
 }
 
+value caml_oci_set_prefetch(value handles, value stmt, value rows) {
+  CAMLparam3(handles, stmt, rows);
+  oci_handles_t h = Oci_handles_val(handles);
+  OCIStmt* sth = Oci_statement_val(stmt);
+  int r = Int_val(rows);
+
+  sword x = OCIAttrSet(sth, OCI_HTYPE_STMT, &r, sizeof(int), OCI_ATTR_PREFETCH_ROWS, h.err);
+  CHECK_OCI(x, h);
+#ifdef DEBUG
+  char dbuf[256]; snprintf(dbuf, 255, "caml_oci_set_prefetch: prefetching (up to) %d rows", r); debug(dbuf);
+#endif
+
+  CAMLreturn(Val_unit);
+}
+
+value caml_oci_get_rows_affected(value handles, value stmt) {
+  CAMLparam2(handles, stmt);
+  oci_handles_t h = Oci_handles_val(handles);
+  OCIStmt* sth = Oci_statement_val(stmt);
+  int r = 0;
+
+  sword x = OCIAttrGet(sth, OCI_HTYPE_STMT, &r, NULL, OCI_ATTR_ROW_COUNT, h.err);
+  CHECK_OCI(x, h);
+
+#ifdef DEBUG
+  char dbuf[256]; snprintf(dbuf, 255, "caml_oci_get_rows_affected: %d rows", r); debug(dbuf);
+#endif
+
+  CAMLreturn(Val_int(r));
+}
+
 /* end of file */

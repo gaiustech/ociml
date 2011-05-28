@@ -1,0 +1,43 @@
+(* .ocimlinit file for ocimlsh component of OCI*ML *)
+
+open Ociml
+open Report
+
+let qq sth sqltext =
+  orasql sth sqltext;
+  let r = new report (Array.map orastring (oracols sth)) in
+  begin
+    try
+      while true do
+	let row = Array.map orastring (orafetch sth) in
+	r#add_row row;
+      done;
+    with |Not_found -> ();
+  end;
+  r#print_report ();;
+
+(* thanks to Pascal Cuoq for this bit *)
+let my_read_input prompt buffer len =
+  output_string Pervasives.stdout !oraprompt ; flush Pervasives.stdout;
+  let i = ref 0 in
+  try
+    while true do
+      if !i >= len then raise Exit;
+      let c = input_char Pervasives.stdin in
+      buffer.[!i] <- c;
+      incr i;
+      if c = '\n' then raise Exit;
+    done;
+    (!i, false)
+  with
+  | End_of_file ->
+    (!i, true)
+  | Exit ->
+    (!i, false);;
+
+Toploop.read_interactive_input := my_read_input ;;
+
+Sys.interactive := true;;
+
+(* end of file *)
+

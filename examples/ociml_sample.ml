@@ -62,7 +62,7 @@ let () =
       [|(Integer 4); (Datetime (localtime (time ()))); (Varchar "Speed of light"); (Number 300000000.)|];
       [|(Integer 5); (Datetime (localtime (time ()))); (Varchar "Acceleration of gravity"); (Number 9.8)|]
     ] in 
-    List.iter (orabindexec sth) my_constants; 
+    orabindexec sth my_constants; 
 
     printf "Inserted 5 rows of data into the following table structure:\n\n";
 

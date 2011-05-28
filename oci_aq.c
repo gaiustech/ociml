@@ -140,14 +140,24 @@ value caml_oci_aq_enqueue(value handles, value queue_name, value message_tdo, va
 }
 
 /* dequeue a message */
-value caml_oci_aq_dequeue(value env, value handles, value queue_name, value message_tdo, value message_size) {
-  CAMLparam5(env, handles, queue_name, message_tdo, message_size);
-  //OCIEnv* e = Oci_env_val(env);
+value caml_oci_aq_dequeue(value env, value handles, value queue_name, value message_tdo, value timeout) {
+  CAMLparam5(env, handles, queue_name, message_tdo, timeout);
+  OCIEnv* e = Oci_env_val(env);
   oci_handles_t h = Oci_handles_val(handles);
   char* qn = String_val(queue_name);
   c_alloc_t mt = C_alloc_val(message_tdo);
-  //int mz = Int_val(message_size);
+  int to = Int_val(timeout);
   sword x;
+
+  /* set the timeout */
+  OCIAQDeqOptions  *deqopt    = (OCIAQDeqOptions *)0;
+  x = OCIDescriptorAlloc(e, (dvoid **)&deqopt, OCI_DTYPE_AQDEQ_OPTIONS, 0, (dvoid **)0);
+  CHECK_OCI(x, h);
+  if (to > -1) {
+    OCIAttrSet(deqopt, OCI_DTYPE_AQDEQ_OPTIONS, (dvoid *)&to, 0, OCI_ATTR_WAIT, h.err);
+    CHECK_OCI(x, h);
+  }
+  
 #ifdef DEBUG
   char dbuf[256]; snprintf(dbuf, 255, "caml_oci_aq_dequeue: dequeueing message from '%s'",  qn); debug(dbuf);
 #endif
@@ -155,13 +165,13 @@ value caml_oci_aq_dequeue(value env, value handles, value queue_name, value mess
   void* ind_buf = NULL;
   c_alloc_t msg_buf = {NULL};
   caml_release_runtime_system();
-  x = OCIAQDeq(h.svc, h.err, (text*)qn, 0, 0, mt.ptr, (dvoid**)&msg_buf.ptr, (dvoid**)&ind_buf, 0, 0);
+  x = OCIAQDeq(h.svc, h.err, (text*)qn, deqopt, 0, mt.ptr, (dvoid**)&msg_buf.ptr, (dvoid**)&ind_buf, 0, 0);
   caml_acquire_runtime_system();
   CHECK_OCI(x, h);
+  OCIDescriptorFree((dvoid *)deqopt, OCI_DTYPE_AQDEQ_OPTIONS);
 
 #ifdef DEBUG
   snprintf(dbuf, 255, "pointer msg_buf.ptr=%p size=%d", msg_buf.ptr, mz); debug(dbuf);
-  //snprintf(dbuf, 255, "Text: %s\n", OCIStringPtr(e, (deq+24))); debug(dbuf);
 #endif
   
   value v = caml_alloc_custom(&c_alloc_t_custom_ops, sizeof(c_alloc_t), 0, 1);
