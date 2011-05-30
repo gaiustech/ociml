@@ -195,6 +195,7 @@ end
 
 (* actual implementation *)
 (*{{{ 0.1 functionality - connections and DML *)
+
 let handle_seq = ref 0 (* unique ids for handles *)
 let statement_seq = ref 0 (* unique ids for statements *)
 
@@ -212,6 +213,7 @@ let oradeqtime lda x = lda.deq_timeout <- x; ()
 
 (* rows to prefetch - set at the level of a statement *)
 let oraprefetch sth x = sth.prefetch_rows <- x; ()
+let oraprefetch_default = ref 10
 
 let oraprompt = ref "not connected > "
 
@@ -337,10 +339,8 @@ let oraopen lda =
   let c = !statement_seq in
   debug (sprintf "allocated statement id %d on connection id %d" c lda.connection_id);
   {statement_id=c; 
-   parses=0; binds=0; execs=0; sth_op_time=0.0; prefetch_rows=1; rows_affected=0; num_cols=0; 
-   bound_vals=(Hashtbl.create 10); 
-   defined_vals=(Hashtbl.create 10); 
-   oci_ptrs=(Hashtbl.create 10); 
+   parses=0; binds=0; execs=0; sth_op_time=0.0; prefetch_rows = !oraprefetch_default; rows_affected=0; num_cols=0; 
+   bound_vals=(Hashtbl.create 10); defined_vals=(Hashtbl.create 10); oci_ptrs=(Hashtbl.create 10); 
    parent_lda=lda; sth=s}
 
 (* connect to Oracle, connstr in format "user/pass@db" or "user/pass" like OraTcl *)
@@ -396,14 +396,16 @@ let rec orastring c =
 		       (sprintf "%02d-%s-%d %02d:%02d:%02d" x.tm_mday months.(x.tm_mon) (x.tm_year+1900) x.tm_hour x.tm_min x.tm_sec)
 	|Null -> orastring (Col_value !internal_oranullval)
 	  
-(* describe a table - column names only (for now!) - using the implicit describe method - also see implementation of oracols *)
+(* describe a table - column names only (for now!) - using the implicit 
+   describe method - also see implementation of oracols *)
 let oradesc lda tabname =
   let sth = oraopen lda in
   ignore(oci_statement_prepare sth.parent_lda.lda sth.sth (sprintf "select * from %s" tabname)); (* discard return value here *)
   oci_statement_execute sth.parent_lda.lda sth.sth sth.parent_lda.auto_commit true; (* true - with OCI_DESCRIBE_ONLY set *)
   oci_get_column_types lda.lda sth.sth 
 
-(* list of columns from last exec - this differs from oradesc in that it gives all the columns in an actual query *)
+(* list of columns from last exec - this differs from oradesc in that it gives 
+   all the columns in an actual query *)
 let oracols sth = Array.map (fun x -> Col_type x) (oci_get_column_types sth.parent_lda.lda sth.sth)
 
 (* get the date back from the C layer as a double, then convert it to Unix.tm *)
@@ -411,7 +413,8 @@ let oci_get_defined_date ptr =
   let d = oci_get_date_as_double ptr in
   localtime d
 
-(* call the underlying OCI fetch, advancing the cursor by one row, then extract the data one column at a time from the define handles *)
+(* call the underlying OCI fetch, advancing the cursor by one row, then extract 
+   the data one column at a time from the define handles *)
 let orafetch sth = 
   debug("orafetch: entered");
   try
@@ -451,6 +454,7 @@ let rec orafetchall_ sth acc =
 	  
 let orafetchall sth = 
   orafetchall_ sth []
+
 (*}}}*)
 
 (*{{{ 0.2 functionality - object type AQ *)
@@ -529,10 +533,10 @@ let oradequeue_obj lda queue_name message_type dummy_payload =
   let ps = oci_size_of_pointer () in                                           (* pointer size - for OCIString *)
   let ns = oci_size_of_number () in                                            (* number size - for OCINumber *)
   let ni = Array.length dummy_payload in                                       (* number of payload items *)
-  let mt = oci_get_tdo global_env lda.lda message_type in                      (* message TDO pointer *)
+  let mt = oci_get_tdo global_env lda.lda message_type in                      (* message TDO pointer - should cache this in the lda *)
   let co = ref 0 in                                                            (* current offset *)
   let rv = Array.make ni Null in                                               (* array returned from function *)
-  let pa = oci_aq_dequeue global_env lda.lda queue_name mt lda.deq_timeout in (* payload array *)
+  let pa = oci_aq_dequeue global_env lda.lda queue_name mt lda.deq_timeout in  (* payload array *)
   Array.iteri (fun i x -> 
     match x with 
       |Varchar z ->
@@ -570,7 +574,7 @@ let oradequeue lda queue_name message_type payload =
   with
       Oci_exception (e_code, e_desc) ->
 	match e_code with
-	  |25228 -> raise Not_found
+	  |25228 -> raise Not_found (* nothing on the queue and timeout set *)
 	  |_     -> raise (Oci_exception (e_code, e_desc))
 (*}}}*)
 

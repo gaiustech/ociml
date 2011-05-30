@@ -3,6 +3,7 @@
 open Ociml
 open Report
 
+(* quick query: qq sth "select * from mytable" *)
 let qq sth sqltext =
   orasql sth sqltext;
   let r = new report (Array.map orastring (oracols sth)) in
@@ -16,7 +17,10 @@ let qq sth sqltext =
   end;
   r#print_report ();;
 
-(* thanks to Pascal Cuoq for this bit *)
+(* set the default prefetch for all newly-created statement handles *)
+oraprefetch_default := 50;;
+
+(* thanks to Pascal Cuoq for this bit - sets the prompt *)
 let my_read_input prompt buffer len =
   output_string Pervasives.stdout !oraprompt ; flush Pervasives.stdout;
   let i = ref 0 in
