@@ -31,7 +31,7 @@ shell: sample
 	ocamlmktop -g -custom -o ocimlsh $(CCLIBS) unix.cma $(MLOBJS) $(COBJS)
 
 dist:
-	tar czvf ociml_dist.tgz *.ml *.c *.h Makefile README LICENSE META examples/ociml_sample.ml
+	tar czvf ociml_dist.tgz *.ml *.c *.h Makefile README LICENSE META examples/ociml_sample.ml .ocamlinit
 
 ociml.cmo:	ociml.ml
 	ocamlc -c -g ociml.ml

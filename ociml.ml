@@ -392,8 +392,7 @@ let rec orastring c =
 	|Varchar x  -> x
 	|Integer x  -> (sprintf "%d" x)
 	|Number x   -> (sprintf "%f" x)
-	|Datetime x -> let months = [|"JAN"; "FEB"; "MAR"; "APR"; "MAY"; "JUN"; "JUL"; "AUG"; "SEP"; "OCT"; "NOV"; "DEC"|] in
-		       (sprintf "%02d-%s-%d %02d:%02d:%02d" x.tm_mday months.(x.tm_mon) (x.tm_year+1900) x.tm_hour x.tm_min x.tm_sec)
+	|Datetime x -> (sprintf "%02d-%s-%d %02d:%02d:%02d" x.tm_mday Log_message.months.(x.tm_mon) (x.tm_year+1900) x.tm_hour x.tm_min x.tm_sec)
 	|Null -> orastring (Col_value !internal_oranullval)
 	  
 (* describe a table - column names only (for now!) - using the implicit 
