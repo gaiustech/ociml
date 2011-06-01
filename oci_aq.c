@@ -171,7 +171,7 @@ value caml_oci_aq_dequeue(value env, value handles, value queue_name, value mess
   OCIDescriptorFree((dvoid *)deqopt, OCI_DTYPE_AQDEQ_OPTIONS);
 
 #ifdef DEBUG
-  snprintf(dbuf, 255, "pointer msg_buf.ptr=%p size=%d", msg_buf.ptr, mz); debug(dbuf);
+  snprintf(dbuf, 255, "pointer msg_buf.ptr=%p timeout=%d", msg_buf.ptr, to); debug(dbuf);
 #endif
   
   value v = caml_alloc_custom(&c_alloc_t_custom_ops, sizeof(c_alloc_t), 0, 1);

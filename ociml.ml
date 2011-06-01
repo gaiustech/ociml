@@ -52,6 +52,8 @@ type meta_statement = {statement_id:int;
 		       mutable prefetch_rows:int;
 		       mutable rows_affected:int;
 		       mutable num_cols:int;
+		       mutable sql_type:int;
+		       mutable out_pending:bool;
 		       bound_vals:(bind_spec, oci_bindhandle) Hashtbl.t;
 		       defined_vals:(bind_spec, define_spec) Hashtbl.t;
 		       oci_ptrs:(bind_spec, oci_ptr) Hashtbl.t;
@@ -165,6 +167,10 @@ external oci_string_from_string: oci_env -> oci_ptr -> string = "caml_oci_string
 external oci_aq_dequeue: oci_env -> oci_handles -> string -> oci_ptr -> int -> oci_ptr = "caml_oci_aq_dequeue"
 
 (*}}}*) 
+
+(* Out variable functions - oci_out.c *)
+external oci_bind_int_out_by_pos: oci_handles -> oci_statement -> oci_bindhandle -> int -> oci_ptr = "caml_oci_bind_int_out_by_pos"
+
 (* public interface *)
 module type OCIML =
 sig
@@ -237,10 +243,6 @@ let global_env = oci_env_create ()
    Note that if you bind the same column by position and by name in subsequent
    calls you will have a small leak in the bind handle cache until the next parse*)
 let rec orabind sth bs cv =
-  (match bs with 
-    |Pos p -> debug(sprintf "orabind: p=%d" p) 
-    |Name n -> ()
-  );
   (* if we have a bind handle for this bind spec, reuse it otherwise allocate a new one *)
   let bh = (try 
 	      Hashtbl.find sth.bound_vals bs
@@ -293,10 +295,11 @@ let oraparse sth sqltext =
     |_ -> ()
   );
 
+  sth.sql_type <- sql_type;
   sth.parses <- (sth.parses + 1);
   sth.sth_op_time <- t2;
   sth.rows_affected <- 0;
-  Hashtbl.clear sth.bound_vals;
+  Hashtbl.clear sth.bound_vals; Hashtbl.clear sth.oci_ptrs;
   ()
     
 (* Execute the statement currently set in the statement handles. At this point,
@@ -309,7 +312,10 @@ let oraexec sth =
   let t2 = gettimeofday () -. t1 in
   debug (sprintf "statement handle %d executed in %fs" sth.statement_id t2);
   sth.execs <- (sth.execs + 1);
-  sth.rows_affected <- oci_get_rows_affected sth.parent_lda.lda sth.sth;
+  if sth.sql_type <> 1 then
+    sth.rows_affected <- oci_get_rows_affected sth.parent_lda.lda sth.sth
+  else
+    ();
   sth.sth_op_time <- t2;
   ()
 
@@ -339,7 +345,8 @@ let oraopen lda =
   let c = !statement_seq in
   debug (sprintf "allocated statement id %d on connection id %d" c lda.connection_id);
   {statement_id=c; 
-   parses=0; binds=0; execs=0; sth_op_time=0.0; prefetch_rows = !oraprefetch_default; rows_affected=0; num_cols=0; 
+   parses=0; binds=0; execs=0; sth_op_time=0.0; prefetch_rows = !oraprefetch_default; rows_affected=0; num_cols=0;
+   out_pending=false; sql_type=0;
    bound_vals=(Hashtbl.create 10); defined_vals=(Hashtbl.create 10); oci_ptrs=(Hashtbl.create 10); 
    parent_lda=lda; sth=s}
 
@@ -577,4 +584,32 @@ let oradequeue lda queue_name message_type payload =
 	  |_     -> raise (Oci_exception (e_code, e_desc))
 (*}}}*)
 
+(*{{{ 0.2.2 OUT binds *)
+let rec orabindout sth bs cv = 
+  let bh = 
+    begin
+      try
+	Hashtbl.find sth.bound_vals bs
+      with
+	  Not_found -> (let bh = oci_alloc_bindhandle () in
+		       Hashtbl.add sth.bound_vals bs bh;
+		       bh)
+    end in
+  begin
+    match bs with
+      |Pos p ->
+	begin
+	  match cv with
+	    |Integer _ -> (Hashtbl.replace sth.oci_ptrs bs (oci_bind_int_out_by_pos sth.parent_lda.lda sth.sth bh p))
+	    |_ -> debug("orabindout: this type not implemented yet")
+	end
+      |Name n ->
+	begin
+	  debug("orabindout: by name not implemented yet")
+	end
+  end;
+  sth.binds <- (sth.binds + 1);
+  ()
+
+(*}}}*)
 (* End of file *)

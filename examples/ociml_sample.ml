@@ -15,7 +15,7 @@ open Ociml_utils (* for decode_col_type *)
 let () =
   try 
     (* set library debugging off - the default anyway - will go to stderr if enabled *)
-    oradebug false;
+    oradebug true;
 
     (* set the preferred value of NULL to something, defaults to 0 *)
     oranullval (Varchar "*NULL*");

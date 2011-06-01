@@ -71,10 +71,10 @@ value caml_oci_stmt_execute(value handles, value stmt, value autocommit, value d
   sword x;
 
   if (d) { /* implicit describe, but do not run query */
-    x = OCIStmtExecute(h.svc, sth, h.err, 1,  0, (CONST OCISnapshot*) NULL, (OCISnapshot*) NULL, OCI_DESCRIBE_ONLY);
 #ifdef DEBUG
-      debug("caml_oci_stmt_execute: described only");
+      debug("caml_oci_stmt_execute: describing only");
 #endif
+    x = OCIStmtExecute(h.svc, sth, h.err, 1,  0, (CONST OCISnapshot*) NULL, (OCISnapshot*) NULL, OCI_DESCRIBE_ONLY);
   } else {
     /* this may take a while */
     caml_release_runtime_system();

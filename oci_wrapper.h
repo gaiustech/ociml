@@ -22,6 +22,21 @@ typedef struct {
   void* ptr;
 } c_alloc_t;
 
+/* struct for storing the callback data */
+typedef struct {
+  int indicator;
+  int rc;      /* return code */
+  void* bufpp; /* pointer to the data */
+  int alenp;   /* actual length */
+} out_data_t;
+
+/* struct for context for dynamic bind callback */
+typedef struct {
+  c_alloc_t cht;
+  OCIError* err;
+  out_data_t* odt;
+} cb_context_t;
+
 #define Oci_env_val(v)        (*((OCIEnv**)       Data_custom_val(v)))
 #define Oci_handles_val(v)    (*((oci_handles_t*) Data_custom_val(v)))
 #define Oci_statement_val(v)  (*((OCIStmt**)      Data_custom_val(v)))

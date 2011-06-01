@@ -13,8 +13,6 @@
 #include <ocidfn.h>
 #include "oci_wrapper.h"
 
-#undef DEBUG
-
 /* Retrieve all the column names from the last query done on this statement handles as a string array */
 value caml_oci_get_column_types(value handles, value stmt) {
   CAMLparam2(handles, stmt);
