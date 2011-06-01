@@ -90,12 +90,12 @@ value caml_oci_bind_int_out_by_pos(value handles, value stmt, value bindh, value
   cbct->odt     = NULL;
 
 #ifdef DEBUG
-  char dbuf[256]; snprintf(dbuf, 255, "caml_oci_bind_int_out_by_pos: cbct=%p cbct->cht.ptr=%p", cbct, cbct->cht.ptr); debug(dbuf);
+  char dbuf[256]; snprintf(dbuf, 255, "caml_oci_bind_int_out_by_pos: p=%d s=%p cbct=%p cbct->cht.ptr=%p", p, s, cbct, cbct->cht.ptr); debug(dbuf);
 #endif
 
   /* bind by position */
   int z = 0;
-  x = OCIBindByPos(s, &bh, h.err, (ub4)p, (dvoid*)&z, sizeof(int), SQLT_INT, 0, 0, 0, 0, 0, OCI_DATA_AT_EXEC);
+  x = OCIBindByPos(s, &bh, h.err, (ub4)p, (dvoid*)z, sizeof(int), SQLT_INT, 0, 0, 0, 0, 0, OCI_DATA_AT_EXEC);
   CHECK_OCI(x, h);
 
   /* bind in the callback */
