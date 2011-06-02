@@ -2,8 +2,8 @@
 
 #define CHECK_OCI(x, h) if (x != OCI_SUCCESS) { oci_non_success(h); }
 
-#ifdef DEBUG
 /* works on linux (!) */
+#ifdef DEBUG
 #define BREAKPOINT asm("int3"); 
 #else
 #define BREAKPOINT /**/

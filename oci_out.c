@@ -46,7 +46,7 @@ sb4 cbf_get_data(dvoid *ctxp, OCIBind *bindp, ub4 iter, ub4 index,
   }
   
   /* storage in the order indicator, rc, bufpp, alenp - assume i can get only pointers back */
-  out_data_t* offset = (out_data_t*)*(void**)cbct->cht.ptr + (index * sizeof(out_data_t));
+  out_data_t* offset = (out_data_t*)(cbct->cht.ptr + (index * sizeof(out_data_t)));
   //BREAKPOINT
   *indpp =   (dvoid*)&offset->indicator;
   *rcodepp = (dvoid*)&offset->rc;
@@ -66,12 +66,11 @@ sb4 cbf_get_data(dvoid *ctxp, OCIBind *bindp, ub4 iter, ub4 index,
 
 
 int get_int_from_context(oci_handles_t h, cb_context_t* cbct, int index) {
-   out_data_t* offset = (out_data_t*)*(void**)cbct->cht.ptr + (index * sizeof(out_data_t));
-   int r;
-   BREAKPOINT
-   sword x = OCINumberToInt(h.err, &offset->bufpp, sizeof(int), OCI_NUMBER_SIGNED, &r);
-   CHECK_OCI(x, h);
-   return r;
+  out_data_t* offset = (out_data_t*)(cbct->cht.ptr + (index * sizeof(out_data_t)));
+  int r;
+  sword x = OCINumberToInt(h.err, &offset->bufpp, sizeof(int), OCI_NUMBER_SIGNED, &r);
+  CHECK_OCI(x, h);
+  return r;
 }
 
 value caml_oci_get_int_from_context(value handles, value context, value index) {
@@ -79,7 +78,7 @@ value caml_oci_get_int_from_context(value handles, value context, value index) {
   oci_handles_t h = Oci_handles_val(handles);
   cb_context_t  c = C_context_val(context);
   int i = Int_val(index);
-  BREAKPOINT
+  //BREAKPOINT
   int r = get_int_from_context(h, &c, i);
 
   CAMLreturn(Val_int(r));
@@ -139,6 +138,7 @@ value caml_oci_bind_int_out_by_pos(value handles, value stmt, value bindh, value
   CHECK_OCI(x, h);
 
   x = OCIBindByPos(s, &bh, h.err, (ub4)p, (dvoid*)&on, sizeof(OCINumber), SQLT_VNU, 0, 0, 0, 0, 0, OCI_DATA_AT_EXEC);
+  //x = OCIBindByPos(s, &bh, h.err, (ub4)p, (dvoid*)0, sizeof(int), SQLT_NUM, 0, 0, 0, 0, 0, OCI_DATA_AT_EXEC);
   CHECK_OCI(x, h);
 
   /* bind in the callback */
