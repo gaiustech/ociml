@@ -37,11 +37,12 @@ sb4 cbf_get_data(dvoid *ctxp, OCIBind *bindp, ub4 iter, ub4 index,
     int rows = 0;
     //BREAKPOINT
     OCIAttrGet((dvoid*)bindp, OCI_HTYPE_BIND, (dvoid*)&rows, (ub4*)sizeof(int), OCI_ATTR_ROWS_RETURNED, cbct->err);
-    void* rs = (void*)malloc(rows * sizeof(out_data_t));
+    int sz = rows * sizeof(out_data_t);
+    void* rs = (void*)malloc(sz);
     memcpy(cbct->cht.ptr, &rs, sizeof(void*)); /* ptr is now a pointer to a pointer */
     
 #ifdef DEBUG
-    char dbuf[256]; snprintf(dbuf, 255, "cbf_get_data: rows=%d rs=%p cbct->cht.ptr=%p", rows, rs, *(void**)cbct->cht.ptr); debug(dbuf);
+    char dbuf[256]; snprintf(dbuf, 255, "cbf_get_data: rows=%d rs=%p cbct->cht.ptr=%p bytes=%d", rows, rs, *(void**)cbct->cht.ptr, sz); debug(dbuf);
 #endif
   }
   
@@ -51,13 +52,15 @@ sb4 cbf_get_data(dvoid *ctxp, OCIBind *bindp, ub4 iter, ub4 index,
   *indpp =   (dvoid*)&offset->indicator;
   *rcodepp = (dvoid*)&offset->rc;
   *bufpp =   (dvoid*)&offset->bufpp;
+
+  offset->alenp = sizeof(OCINumber);
   *alenp =   (dvoid*)&offset->alenp;
+  *piecep = OCI_ONE_PIECE;
 
 #ifdef DEBUG
-  char dbuf[256]; snprintf(dbuf, 255, "cbf_get_data: index=%d offset=%p indpp=%p rcodepp=%p bufpp=%p alenp=%p", index, offset, *indpp, *rcodepp, *bufpp, *alenp); debug(dbuf);
+  char dbuf[256]; snprintf(dbuf, 255, "cbf_get_data: iter=%d index=%d bindp=%p offset=%p indpp=%p rcodepp=%p bufpp=%p alenp=%p", iter, index, bindp, offset, *indpp, *rcodepp, *bufpp, *alenp); debug(dbuf);
 #endif
 
-  *piecep = OCI_ONE_PIECE;
 #ifdef DEBUG
   debug("leaving cbf_get_data");
 #endif
@@ -138,7 +141,6 @@ value caml_oci_bind_int_out_by_pos(value handles, value stmt, value bindh, value
   CHECK_OCI(x, h);
 
   x = OCIBindByPos(s, &bh, h.err, (ub4)p, (dvoid*)&on, sizeof(OCINumber), SQLT_VNU, 0, 0, 0, 0, 0, OCI_DATA_AT_EXEC);
-  //x = OCIBindByPos(s, &bh, h.err, (ub4)p, (dvoid*)0, sizeof(int), SQLT_NUM, 0, 0, 0, 0, 0, OCI_DATA_AT_EXEC);
   CHECK_OCI(x, h);
 
   /* bind in the callback */
