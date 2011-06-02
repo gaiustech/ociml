@@ -35,33 +35,69 @@ sb4 cbf_get_data(dvoid *ctxp, OCIBind *bindp, ub4 iter, ub4 index,
   /* find out how many rows we are expecting */
   if (index == 0) {
     int rows = 0;
+    //BREAKPOINT
     OCIAttrGet((dvoid*)bindp, OCI_HTYPE_BIND, (dvoid*)&rows, (ub4*)sizeof(int), OCI_ATTR_ROWS_RETURNED, cbct->err);
     void* rs = (void*)malloc(rows * sizeof(out_data_t));
-    memcpy(&cbct->cht.ptr, rs, sizeof(void*));
+    memcpy(cbct->cht.ptr, &rs, sizeof(void*)); /* ptr is now a pointer to a pointer */
     
 #ifdef DEBUG
-    char dbuf[256]; snprintf(dbuf, 255, "cbf_get_data: rows=%d rs=%p cbct->cht.ptr=%p", rows, rs, cbct->cht.ptr); debug(dbuf);
+    char dbuf[256]; snprintf(dbuf, 255, "cbf_get_data: rows=%d rs=%p cbct->cht.ptr=%p", rows, rs, *(void**)cbct->cht.ptr); debug(dbuf);
 #endif
   }
   
   /* storage in the order indicator, rc, bufpp, alenp - assume i can get only pointers back */
-  void* offset = cbct->cht.ptr + (index * sizeof(out_data_t));
-  *indpp = (dvoid*)&offset;
-  *rcodepp = (dvoid*)&offset + sizeof (int);
-  *bufpp = (dvoid*)&offset + (2 * sizeof(int));
-  *alenp = (dvoid*)&offset + (2 * sizeof(int)) + sizeof (void*);
+  out_data_t* offset = (out_data_t*)*(void**)cbct->cht.ptr + (index * sizeof(out_data_t));
+  //BREAKPOINT
+  *indpp =   (dvoid*)&offset->indicator;
+  *rcodepp = (dvoid*)&offset->rc;
+  *bufpp =   (dvoid*)&offset->bufpp;
+  *alenp =   (dvoid*)&offset->alenp;
 
 #ifdef DEBUG
-  char dbuf[256]; snprintf(dbuf, 255, "cbf_get_data: index=%d offset=%p indpp=%p rcodepp=%p bufpp=%p alenp=%p", index, offset, indpp, rcodepp, bufpp, alenp); debug(dbuf);
+  char dbuf[256]; snprintf(dbuf, 255, "cbf_get_data: index=%d offset=%p indpp=%p rcodepp=%p bufpp=%p alenp=%p", index, offset, *indpp, *rcodepp, *bufpp, *alenp); debug(dbuf);
 #endif
 
-
   *piecep = OCI_ONE_PIECE;
-
+#ifdef DEBUG
+  debug("leaving cbf_get_data");
+#endif
   return OCI_CONTINUE;
 }
 
-static struct custom_operations c_alloc_t_custom_ops = {
+
+int get_int_from_context(oci_handles_t h, cb_context_t* cbct, int index) {
+   out_data_t* offset = (out_data_t*)*(void**)cbct->cht.ptr + (index * sizeof(out_data_t));
+   int r;
+   BREAKPOINT
+   sword x = OCINumberToInt(h.err, &offset->bufpp, sizeof(int), OCI_NUMBER_SIGNED, &r);
+   CHECK_OCI(x, h);
+   return r;
+}
+
+value caml_oci_get_int_from_context(value handles, value context, value index) {
+  CAMLparam3(handles, context, index);
+  oci_handles_t h = Oci_handles_val(handles);
+  cb_context_t  c = C_context_val(context);
+  int i = Int_val(index);
+  BREAKPOINT
+  int r = get_int_from_context(h, &c, i);
+
+  CAMLreturn(Val_int(r));
+}
+
+/* callback function to free memory, called by the OCaml GC */
+void caml_free_context_t(value cbct) {
+  CAMLparam1(cbct);
+#ifdef DEBUG
+  debug("caml_free_context_t: entered");
+#endif
+  cb_context_t x = C_context_val(cbct);
+  free(x.cht.ptr); // only free the callback memory, not the error handle!
+  CAMLreturn0;
+}
+
+
+static struct custom_operations c_context_t_custom_ops = {
   "c_alloc_t_custom_ops", &caml_free_alloc_t, NULL, NULL, NULL, NULL}; 
 
 
@@ -82,29 +118,35 @@ value caml_oci_bind_int_out_by_pos(value handles, value stmt, value bindh, value
   OCIBind* bh = Oci_bindhandle_val(bindh);
   int p = Int_val(pos);
   sword x;
-  /* allocate a pointer to a pointer */
-  cb_context_t* cbct = (cb_context_t*)malloc(sizeof(cb_context_t));
   
+  /* this is a trick to get the error handle into the callback function - 
+     bloody Oracle and their global variables everywhere in their sample 
+     code */
+  cb_context_t* cbct = (cb_context_t*)malloc(sizeof(cb_context_t));;
+  
+  /* allocate a pointer to a pointer */
   cbct->cht.ptr = (void*)malloc(sizeof(void*));
   cbct->err     = h.err;
-  cbct->odt     = NULL;
+  //BREAKPOINT
 
 #ifdef DEBUG
-  char dbuf[256]; snprintf(dbuf, 255, "caml_oci_bind_int_out_by_pos: p=%d s=%p cbct=%p cbct->cht.ptr=%p", p, s, cbct, cbct->cht.ptr); debug(dbuf);
+  char dbuf[256]; snprintf(dbuf, 255, "caml_oci_bind_int_out_by_pos: pos=%d cbct=%p cbct.cht.ptr=%p", p, cbct, cbct->cht.ptr); debug(dbuf);
 #endif
 
   /* bind by position */
-  int z = 0;
-  x = OCIBindByPos(s, &bh, h.err, (ub4)p, (dvoid*)z, sizeof(int), SQLT_INT, 0, 0, 0, 0, 0, OCI_DATA_AT_EXEC);
+  OCINumber on; int z = 0;
+  x = OCINumberFromInt(h.err, &z, sizeof(int), OCI_NUMBER_SIGNED, &on);
+  CHECK_OCI(x, h);
+
+  x = OCIBindByPos(s, &bh, h.err, (ub4)p, (dvoid*)&on, sizeof(OCINumber), SQLT_VNU, 0, 0, 0, 0, 0, OCI_DATA_AT_EXEC);
   CHECK_OCI(x, h);
 
   /* bind in the callback */
-  x = OCIBindDynamic(bh, h.err, NULL, cbf_no_data, &cbct, cbf_get_data);
+  x = OCIBindDynamic(bh, h.err, (dvoid*)cbct, cbf_no_data, (dvoid*)cbct, cbf_get_data);
   CHECK_OCI(x, h);
 
-  value v = caml_alloc_custom(&c_alloc_t_custom_ops, sizeof(c_alloc_t), 0, 1);
-  C_alloc_val(v) = cbct->cht;
-  free(cbct);
+  value v = caml_alloc_custom(&c_context_t_custom_ops, sizeof(cb_context_t), 0, 1);
+  C_context_val(v) = *cbct;
   CAMLreturn(v);
 }
 

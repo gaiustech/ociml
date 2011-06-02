@@ -170,6 +170,7 @@ external oci_aq_dequeue: oci_env -> oci_handles -> string -> oci_ptr -> int -> o
 
 (* Out variable functions - oci_out.c *)
 external oci_bind_int_out_by_pos: oci_handles -> oci_statement -> oci_bindhandle -> int -> oci_ptr = "caml_oci_bind_int_out_by_pos"
+external oci_get_int_from_context: oci_handles -> oci_ptr -> int -> int = "caml_oci_get_int_from_context"
 
 (* public interface *)
 module type OCIML =

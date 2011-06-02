@@ -39,7 +39,7 @@ ociml.cmo:	ociml.ml
 %.cmo: %.ml
 	ocamlc -c -g -annot unix.cma $<
 
-%.o:	%.c
+%.o:	%.c oci_wrapper.h
 	ocamlc -g -ccopt -ggdb -ccopt -DDEBUG -ccopt -DOCAML_VERSION_MINOR=$(OCAML_VERSION_MINOR) -c $(CCFLAGS) $<
 
 %.cmi:	%.mli

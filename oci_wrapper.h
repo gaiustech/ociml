@@ -2,6 +2,13 @@
 
 #define CHECK_OCI(x, h) if (x != OCI_SUCCESS) { oci_non_success(h); }
 
+#ifdef DEBUG
+/* works on linux (!) */
+#define BREAKPOINT asm("int3"); 
+#else
+#define BREAKPOINT /**/
+#endif
+
 /* Allocate the handles for error, server, service context and session in a struct for convenience */
 typedef struct {
   OCIError*   err;
@@ -26,7 +33,7 @@ typedef struct {
 typedef struct {
   int indicator;
   int rc;      /* return code */
-  void* bufpp; /* pointer to the data */
+  OCINumber bufpp; /* pointer to the data */
   int alenp;   /* actual length */
 } out_data_t;
 
@@ -34,7 +41,6 @@ typedef struct {
 typedef struct {
   c_alloc_t cht;
   OCIError* err;
-  out_data_t* odt;
 } cb_context_t;
 
 #define Oci_env_val(v)        (*((OCIEnv**)       Data_custom_val(v)))
@@ -43,7 +49,8 @@ typedef struct {
 #define Oci_bindhandle_val(v) (*((OCIBind**)      Data_custom_val(v)))
 #define Oci_date_val(v)       (*((OCIDate**)      Data_custom_val(v)))
 #define Oci_defhandle_val(v)  (*((oci_define_t*)  Data_custom_val(v)))
-#define C_alloc_val(v)        (*((c_alloc_t*) Data_custom_val(v)))
+#define C_alloc_val(v)        (*((c_alloc_t*)     Data_custom_val(v)))
+#define C_context_val(v)      (*((cb_context_t*)  Data_custom_val(v)))
 
 /* declare common C functions (not called directly from OCaml) */
 void debug(char* msg);
