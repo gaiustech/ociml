@@ -74,12 +74,14 @@ let () =
     let tabname = "ociml_test" in 
     let cols = oradesc lda tabname in
     let r = new report [|"Column name"; "Data type"; "Size"; "Is integer"; "NULL allowed"|] in
-    Array.iter (fun (col_name, col_type, col_size, is_integer, is_nullable) -> 
-    r#add_row [|col_name; 
-		(decode_col_type col_type); 
-		(string_of_int col_size); 
-		(decode_bool is_integer); 
-		(decode_bool is_nullable)|]) cols;
+    Array.iter (fun x -> match x with
+      |Col_type (col_name, col_type, col_size, is_integer, is_nullable) -> 
+	r#add_row [|col_name; 
+		    (decode_col_type col_type); 
+		    (string_of_int col_size); 
+		    (decode_bool is_integer); 
+		    (decode_bool is_nullable)|]
+      |_ -> () ) cols;
     r#print_report ();
 
     (* now run an actual query on the data *)

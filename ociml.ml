@@ -28,13 +28,7 @@ type meta_handle = {connection_id:int;
 (* Variant for the basic data types - datetime crosses back and forth as epoch, 
    and Oracle's NUMBER datatype of course can be either integer or floating 
    point but it doesn't make sense to make the OCaml layer deal only in floats *)
-type col_value = Varchar of string|Datetime of Unix.tm|Integer of int|Number of float|Null
-
-(* type for column metadata - name, type, size, is_integer, is_nullable *)
-type col_type = string * int * int * bool * bool
-
-(* for conversion to string *)
-type stringable = Col_value of col_value|Col_type of col_type
+type col_value = Col_type of string * int * int * bool * bool|Varchar of string|Datetime of Unix.tm|Integer of int|Number of float|Null
 
 (* variant enabling binding by position or by name *)
 type bind_spec = Pos of int|Name of string
@@ -55,16 +49,12 @@ type meta_statement = {statement_id:int;
 		       mutable sql_type:int;
 		       mutable out_pending:bool;
 		       mutable out_counter:int;
+		       out_types:(bind_spec, col_value) Hashtbl.t;
 		       bound_vals:(bind_spec, oci_bindhandle) Hashtbl.t;
 		       defined_vals:(bind_spec, define_spec) Hashtbl.t;
 		       oci_ptrs:(bind_spec, oci_ptr) Hashtbl.t;
 		       parent_lda:meta_handle; 
 		       sth:oci_statement}
-
-(* pointer to C memory, with an offset to memory used so far *)
-type meta_c_alloc = {c_ptr:oci_ptr;
-		     bytes_alloc:int;
-		     mutable bytes_offset:int}
 
 (*{{{ various constants from oci.h *)
 
@@ -133,7 +123,7 @@ external oci_bind_date_by_name: oci_handles -> oci_statement -> oci_bindhandle -
 (*}}}*)
 
 (*{{{ fetching - oci_select.c *)
-external oci_get_column_types: oci_handles -> oci_statement -> col_type array = "caml_oci_get_column_types"
+external oci_get_column_types: oci_handles -> oci_statement -> col_value array = "caml_oci_get_column_types"
 external oci_define: oci_handles -> oci_statement -> int -> (int * bool) -> int -> define_spec = "caml_oci_define"
 external oci_fetch: oci_handles -> oci_statement -> unit = "caml_oci_fetch"
 external oci_set_prefetch: oci_handles -> oci_statement -> int -> unit = "caml_oci_set_prefetch"
@@ -189,7 +179,7 @@ sig
   val orasql:       meta_statement -> string -> unit
   val oraautocom:   meta_handle -> unit
   val orabindexec:  meta_statement -> col_value array list -> unit
-  val orastring:    stringable -> string
+  val orastring:    col_value -> string
   val oradesc:      meta_handle -> string -> string array
   val oracols:      meta_statement -> string array
   val orafetch:     meta_statement -> col_value array
@@ -258,7 +248,7 @@ let rec orabind sth bs cv =
 	|Varchar _  -> (Hashtbl.replace sth.oci_ptrs bs (oci_bind_by_pos sth.parent_lda.lda sth.sth bh (p, oci_sqlt_str) cv))
 	|Integer _  -> (Hashtbl.replace sth.oci_ptrs bs (oci_bind_by_pos sth.parent_lda.lda sth.sth bh (p, oci_sqlt_int) cv))
 	|Number _   -> (Hashtbl.replace sth.oci_ptrs bs (oci_bind_by_pos sth.parent_lda.lda sth.sth bh (p, oci_sqlt_flt) cv))
-	|Null       -> orabind sth bs !internal_oranullval
+	|_          -> orabind sth bs !internal_oranullval
     )
     |Name n -> ( 
       let n = match (String.sub n 0 1) with 
@@ -269,7 +259,7 @@ let rec orabind sth bs cv =
 	|Varchar _  -> (Hashtbl.replace sth.oci_ptrs bs (oci_bind_by_name sth.parent_lda.lda sth.sth bh (n, oci_sqlt_str) cv))
 	|Integer _  -> (Hashtbl.replace sth.oci_ptrs bs (oci_bind_by_name sth.parent_lda.lda sth.sth bh (n, oci_sqlt_int) cv))
 	|Number _   -> (Hashtbl.replace sth.oci_ptrs bs (oci_bind_by_name sth.parent_lda.lda sth.sth bh (n, oci_sqlt_flt) cv))
-	|Null       -> orabind sth bs !internal_oranullval
+	|_          -> orabind sth bs !internal_oranullval
     )
   );
   sth.binds <- (sth.binds +1);
@@ -288,12 +278,18 @@ let oraparse sth sqltext =
      each item in the array, allocate an appropriate define (C) and store a 
      pointer to it indexed by Pos n *)
   (match sql_type with
-    |1 -> (
-      oci_statement_execute sth.parent_lda.lda sth.sth sth.parent_lda.auto_commit true; 
-      let sql_cols = oci_get_column_types sth.parent_lda.lda sth.sth in
-      sth.num_cols <- Array.length sql_cols;
-      Array.iteri (fun i (name, dtype, size, is_int, is_null) -> 
-	Hashtbl.replace sth.defined_vals (Pos i) (oci_define sth.parent_lda.lda sth.sth i (dtype, is_int) size)) sql_cols)
+    |1 -> 
+      begin
+	oci_statement_execute sth.parent_lda.lda sth.sth sth.parent_lda.auto_commit true; 
+	let sql_cols = (* Array.map (fun (a,b,c,d,e) -> Col_type (a,b,c,d,e)) *) (oci_get_column_types sth.parent_lda.lda sth.sth)  in
+	sth.num_cols <- Array.length sql_cols;
+	Array.iteri (fun i x  ->
+	  match x with
+	    |Col_type (name, dtype, size, is_int, is_null) ->
+	      Hashtbl.replace sth.defined_vals (Pos i) (oci_define sth.parent_lda.lda sth.sth i (dtype, is_int) size)
+	    | _ -> () 
+	)  sql_cols
+      end
     |_ -> ()
   );
 
@@ -349,7 +345,7 @@ let oraopen lda =
   debug (sprintf "allocated statement id %d on connection id %d" c lda.connection_id);
   {statement_id=c; 
    parses=0; binds=0; execs=0; sth_op_time=0.0; prefetch_rows = !oraprefetch_default; rows_affected=0; num_cols=0;
-   out_pending=false; out_counter = 0; sql_type=0;
+   out_pending=false; out_counter = 0; sql_type=0; out_types=(Hashtbl.create 10);
    bound_vals=(Hashtbl.create 10); defined_vals=(Hashtbl.create 10); oci_ptrs=(Hashtbl.create 10); 
    parent_lda=lda; sth=s}
 
@@ -396,14 +392,12 @@ let oraroll lda =
 (* convert a col_value or a col_type to a string for display *)
 let rec orastring c = 
   match c with
-    |Col_type t  -> ((fun (x, _, _, _, _) -> x) t)
-    |Col_value x -> 
-      match x with
-	|Varchar x  -> x
-	|Integer x  -> (sprintf "%d" x)
-	|Number x   -> (sprintf "%f" x)
-	|Datetime x -> (sprintf "%02d-%s-%d %02d:%02d:%02d" x.tm_mday Log_message.months.(x.tm_mon) (x.tm_year+1900) x.tm_hour x.tm_min x.tm_sec)
-	|Null -> orastring (Col_value !internal_oranullval)
+    |Varchar x  -> x
+    |Integer x  -> (sprintf "%d" x)
+    |Number x   -> (sprintf "%f" x)
+    |Datetime x -> (sprintf "%02d-%s-%d %02d:%02d:%02d" x.tm_mday Log_message.months.(x.tm_mon) (x.tm_year+1900) x.tm_hour x.tm_min x.tm_sec)
+    |Col_type (a,b,c,d,e) -> a
+    |Null -> orastring !internal_oranullval
 	  
 (* describe a table - column names only (for now!) - using the implicit 
    describe method - also see implementation of oracols *)
@@ -415,7 +409,7 @@ let oradesc lda tabname =
 
 (* list of columns from last exec - this differs from oradesc in that it gives 
    all the columns in an actual query *)
-let oracols sth = Array.map (fun x -> Col_type x) (oci_get_column_types sth.parent_lda.lda sth.sth)
+let oracols sth = (* Array.map (fun x -> Col_type x) *) (oci_get_column_types sth.parent_lda.lda sth.sth)
 
 (* get the date back from the C layer as a double, then convert it to Unix.tm *)
 let oci_get_defined_date ptr =
@@ -430,17 +424,17 @@ let orafetch_select sth =
     (match sth.rows_affected with
       |0 -> ()
       |_ -> oci_fetch sth.parent_lda.lda sth.sth);
-    let row = Array.make sth.num_cols (Col_value Null) in
+    let row = Array.make sth.num_cols Null in
     (for i = 0 to (sth.num_cols - 1) do
 	let (dt, is_int, ptr) = Hashtbl.find sth.defined_vals (Pos i) in
 	match dt with
-	  |1  -> row.(i) <- Col_value (Varchar  (oci_get_defined_string ptr))
-	  |12 -> row.(i) <- Col_value (Datetime (oci_get_defined_date ptr))
+	  |1  -> row.(i) <- Varchar  (oci_get_defined_string ptr)
+	  |12 -> row.(i) <- Datetime (oci_get_defined_date ptr)
 	  |2 -> (* could be an int or a float *) 
 	    (debug(sprintf "col=%d type=%d is_int=%b" i dt is_int);
 	     match is_int with
-	      |true  -> row.(i) <- Col_value (Integer (oci_get_int    sth.parent_lda.lda ptr))
-	      |false -> row.(i) <- Col_value (Number  (oci_get_double sth.parent_lda.lda ptr))
+	      |true  -> row.(i) <- Integer (oci_get_int    sth.parent_lda.lda ptr)
+	      |false -> row.(i) <- Number  (oci_get_double sth.parent_lda.lda ptr)
 	    )
 	  |_ -> debug(sprintf "orafetch unhandled type in row %d col=%d datatype=%d is_int=%b" sth.rows_affected i dt is_int);
      done); 
@@ -456,11 +450,11 @@ let orafetch_select sth =
 
 (* build a result set from the out variables. we know how many we have from the 
    number of keys in sth.oci_ptrs. We know how many rows we have from 
-   sth.rows_affected. So we need to loop and pivot. Integer only for now.
+   sth.rows_affected. So we need to loop and pivot.
 *)
 let orafetch_out sth =
    let num_ptrs = Hashtbl.length sth.oci_ptrs in
-   let rs = Array.make num_ptrs (Col_value Null) in
+   let rs = Array.make num_ptrs Null in
    let more_rows = (sth.out_counter < sth.rows_affected) in
    begin
      match more_rows with
@@ -468,7 +462,10 @@ let orafetch_out sth =
 	 begin
 	   for i = 1 to num_ptrs do
 	     let bs = (Pos i) in
-	     rs.(i - 1) <- Col_value (Integer (oci_get_int_from_context sth.parent_lda.lda (Hashtbl.find sth.oci_ptrs bs) sth.out_counter));
+	     match (Hashtbl.find sth.out_types bs) with
+	       |Integer _ -> 
+		 rs.(i - 1) <- Integer (oci_get_int_from_context sth.parent_lda.lda (Hashtbl.find sth.oci_ptrs bs) sth.out_counter);
+	       |_ -> ();
 	   done;
 	   sth.out_counter <- (sth.out_counter +1); 
 	 end
@@ -476,6 +473,7 @@ let orafetch_out sth =
 	 begin
 	   sth.out_pending <- false;
 	   sth.out_counter <- 0;
+	   Hashtbl.clear sth.oci_ptrs;
 	   raise Not_found;
 	 end
    end;
@@ -485,7 +483,7 @@ let orafetch_out sth =
 let orafetch sth = 
   match sth.out_pending with
     |false -> orafetch_select sth
-    |true -> orafetch_out sth
+    |true  -> orafetch_out sth
 
 (* fetch all rows in a cursor and return them as a list *)
 let rec orafetchall_ sth acc =
@@ -586,7 +584,7 @@ let oradequeue_obj lda queue_name message_type dummy_payload =
 	  debug(sprintf "oradequeue_obj: found Varchar, current offset is %d" !co);
 	  rv.(i) <- Varchar (oci_string_from_payload pa !co);
 	  co := (!co + ps);
-	  debug(sprintf "oradequeue_obj: dequeued string '%s'" (orastring (Col_value rv.(i))))
+	  debug(sprintf "oradequeue_obj: dequeued string '%s'" (orastring rv.(i)))
 	  end
       |Integer z ->
 	begin
@@ -636,7 +634,11 @@ let rec orabindout sth bs cv =
       |Pos p ->
 	begin
 	  match cv with
-	    |Integer _ -> (Hashtbl.replace sth.oci_ptrs bs (oci_bind_int_out_by_pos sth.parent_lda.lda sth.sth bh p))
+	    |Integer _ ->
+	      begin
+		Hashtbl.replace sth.oci_ptrs bs (oci_bind_int_out_by_pos sth.parent_lda.lda sth.sth bh p);
+		Hashtbl.replace sth.out_types bs cv;
+	      end
 	    |_ -> debug("orabindout: this type not implemented yet")
 	end
       |Name n ->
