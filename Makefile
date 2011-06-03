@@ -10,10 +10,10 @@ OCAML_VERSION_MINOR = `ocamlopt -version | cut -f2 -d.`
 OCAML_VERSION_POINT = `ocamlopt -version | cut -f3 -d.`
 
 sample:$(MLOBJS) $(COBJS) examples/ociml_sample.ml
-	ocamlfind ocamlc -annot -g -custom -o examples/ociml_sample $(CCLIBS) unix.cma $(MLOBJS) examples/ociml_sample.ml $(COBJS) 
+	ocamlfind ocamlc -g -custom -o examples/ociml_sample $(CCLIBS) unix.cma $(MLOBJS) examples/ociml_sample.ml $(COBJS) 
 
 clean:
-	rm -f ociml examples/ociml_sample *.cm* *.o  *~ *.so *.a ocimlsh sqlnet.log 
+	rm -f ociml examples/ociml_sample *.cm* *.o  *~ *.so *.a ocimlsh sqlnet.log *.annot
 
 install: default
 	ocamlmklib -verbose -o ociml -L$(ORACLE_HOME)/lib  -lclntsh -cclib -lclntsh unix.cma $(MLOBJS) $(COBJS)
@@ -34,13 +34,13 @@ dist:
 	tar czvf ociml_dist.tgz *.ml *.c *.h Makefile README LICENSE META examples/ociml_sample.ml .ocamlinit
 
 ociml.cmo:	ociml.ml
-	ocamlc -c -g -annot  ociml.ml
+	ocamlc -c -g  ociml.ml
  
 %.cmo: %.ml
-	ocamlc -c -g -annot unix.cma $<
+	ocamlc -c -g unix.cma $<
 
 %.o:	%.c oci_wrapper.h
-	ocamlc -g -ccopt -ggdb -ccopt -DDEBUG -ccopt -DOCAML_VERSION_MINOR=$(OCAML_VERSION_MINOR) -c $(CCFLAGS) $<
+	ocamlc -g -ccopt -DOCAML_VERSION_MINOR=$(OCAML_VERSION_MINOR) -c $(CCFLAGS) $<
 
 %.cmi:	%.mli
 	ocamlc -c $<

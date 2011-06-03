@@ -1,4 +1,4 @@
-# Makefile for OCI*ML project
+# Debugging Makefile for OCI*ML project
 
 CCFLAGS	= -ccopt -I/usr/lib/ocaml -ccopt -I$(ORACLE_HOME)/rdbms/public -ccopt -Wall
 COBJS	= oci_common.o oci_connect.o oci_types.o oci_dml.o oci_select.o oci_aq.o oci_blob.o oci_out.o
@@ -13,7 +13,7 @@ sample:$(MLOBJS) $(COBJS) examples/ociml_sample.ml
 	ocamlfind ocamlc -annot -g -custom -o examples/ociml_sample $(CCLIBS) unix.cma $(MLOBJS) examples/ociml_sample.ml $(COBJS) 
 
 clean:
-	rm -f ociml examples/ociml_sample *.cm* *.o  *~ *.so *.a ocimlsh sqlnet.log 
+	rm -f ociml examples/ociml_sample *.cm* *.o  *~ *.so *.a ocimlsh sqlnet.log *.annot
 
 install: default
 	ocamlmklib -verbose -o ociml -L$(ORACLE_HOME)/lib  -lclntsh -cclib -lclntsh unix.cma $(MLOBJS) $(COBJS)

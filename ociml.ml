@@ -56,30 +56,7 @@ type meta_statement = {statement_id:int;
 		       parent_lda:meta_handle; 
 		       sth:oci_statement}
 
-(*{{{ various constants from oci.h *)
-
-let oci_attr_username           =  22
-let oci_attr_password           =  23 
-let oci_attr_client_identifier  = 278 
-let oci_attr_client_info        = 368 
-let oci_attr_module             = 366
-let oci_attr_rows_fetched       = 197
-let oci_attr_prefetch_memory    = 13
-let oci_attr_param_count        = 18
-let oci_stmt_select             = 1
-
-(* various constants from ocidfn.h *)
-let oci_sqlt_odt                = 156 (* OCIDate object *)
-let oci_sqlt_str                = 5   (* zero-terminated string *)
-let oci_sqlt_int                = 3   (* integer *)
-let oci_sqlt_flt                = 4   (* floating point number *)
-let oci_sqlt_num                = 2   (* ORANET numeric *)
-let oci_sqlt_dat                = 12  (* Oracle 7-byte date *)
-let oci_sqlt_chr                = 1   (* ORANET character string *)
-
-(*}}}*)
-let date_to_double t =
-  fst (mktime t)
+let date_to_double t = fst (mktime t)
 
 let decode_col_type x =
   match x with
@@ -419,7 +396,7 @@ let oci_get_defined_date ptr =
 (* call the underlying OCI fetch, advancing the cursor by one row, then extract 
    the data one column at a time from the define handles *)
 let orafetch_select sth = 
-  debug("orafetch: entered");
+  debug("orafetch_select: entered");
   try
     (match sth.rows_affected with
       |0 -> ()
@@ -473,7 +450,7 @@ let orafetch_out sth =
 	 begin
 	   sth.out_pending <- false;
 	   sth.out_counter <- 0;
-	   Hashtbl.clear sth.oci_ptrs;
+	   Hashtbl.clear sth.oci_ptrs; (* this *ought* to result in them being GC'd with the C callback... *)
 	   raise Not_found;
 	 end
    end;
@@ -618,17 +595,15 @@ let oradequeue lda queue_name message_type payload =
 	  |_     -> raise (Oci_exception (e_code, e_desc))
 (*}}}*)
 
-(*{{{ 0.2.2 OUT binds *)
+(*{{{ 0.2.2 OUT binds - also see orafetch modifications above *)
 let rec orabindout sth bs cv = 
   let bh = 
-    begin
-      try
+    (try
 	Hashtbl.find sth.bound_vals bs
       with
 	  Not_found -> (let bh = oci_alloc_bindhandle () in
 		       Hashtbl.add sth.bound_vals bs bh;
-		       bh)
-    end in
+			bh)) in
   begin
     match bs with
       |Pos p ->
