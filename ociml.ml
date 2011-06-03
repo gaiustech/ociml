@@ -54,6 +54,7 @@ type meta_statement = {statement_id:int;
 		       mutable num_cols:int;
 		       mutable sql_type:int;
 		       mutable out_pending:bool;
+		       mutable out_counter:int;
 		       bound_vals:(bind_spec, oci_bindhandle) Hashtbl.t;
 		       defined_vals:(bind_spec, define_spec) Hashtbl.t;
 		       oci_ptrs:(bind_spec, oci_ptr) Hashtbl.t;
@@ -300,6 +301,7 @@ let oraparse sth sqltext =
   sth.parses <- (sth.parses + 1);
   sth.sth_op_time <- t2;
   sth.rows_affected <- 0;
+  sth.out_pending <- false;
   Hashtbl.clear sth.bound_vals; Hashtbl.clear sth.oci_ptrs;
   ()
     
@@ -339,7 +341,7 @@ let oraclose sth =
 
 (* open a statement handle/cursor on a given connection - actually allocated 
    from the global env's memory pool as the OCI sample code seems to do it 
-   that way *)
+   that way. Needs a *lot* of metadata to support the OraTcl style API *)
 let oraopen lda =
   let s = oci_alloc_statement global_env in
   statement_seq := (!statement_seq + 1);
@@ -347,7 +349,7 @@ let oraopen lda =
   debug (sprintf "allocated statement id %d on connection id %d" c lda.connection_id);
   {statement_id=c; 
    parses=0; binds=0; execs=0; sth_op_time=0.0; prefetch_rows = !oraprefetch_default; rows_affected=0; num_cols=0;
-   out_pending=false; sql_type=0;
+   out_pending=false; out_counter = 0; sql_type=0;
    bound_vals=(Hashtbl.create 10); defined_vals=(Hashtbl.create 10); oci_ptrs=(Hashtbl.create 10); 
    parent_lda=lda; sth=s}
 
@@ -422,7 +424,7 @@ let oci_get_defined_date ptr =
 
 (* call the underlying OCI fetch, advancing the cursor by one row, then extract 
    the data one column at a time from the define handles *)
-let orafetch sth = 
+let orafetch_select sth = 
   debug("orafetch: entered");
   try
     (match sth.rows_affected with
@@ -451,6 +453,39 @@ let orafetch sth =
 	debug (sprintf "orafetch: not found: rows=%d" sth.rows_affected); 
 	raise Not_found
       |_    -> raise (Oci_exception (e_code, e_desc)))
+
+(* build a result set from the out variables. we know how many we have from the 
+   number of keys in sth.oci_ptrs. We know how many rows we have from 
+   sth.rows_affected. So we need to loop and pivot. Integer only for now.
+*)
+let orafetch_out sth =
+   let num_ptrs = Hashtbl.length sth.oci_ptrs in
+   let rs = Array.make num_ptrs (Col_value Null) in
+   let more_rows = (sth.out_counter < sth.rows_affected) in
+   begin
+     match more_rows with
+       |true ->
+	 begin
+	   for i = 1 to num_ptrs do
+	     let bs = (Pos i) in
+	     rs.(i - 1) <- Col_value (Integer (oci_get_int_from_context sth.parent_lda.lda (Hashtbl.find sth.oci_ptrs bs) sth.out_counter));
+	   done;
+	   sth.out_counter <- (sth.out_counter +1); 
+	 end
+       |false ->
+	 begin
+	   sth.out_pending <- false;
+	   sth.out_counter <- 0;
+	   raise Not_found;
+	 end
+   end;
+   rs
+
+(* overload orafetch so it can be used for regular selects and for out variables *)
+let orafetch sth = 
+  match sth.out_pending with
+    |false -> orafetch_select sth
+    |true -> orafetch_out sth
 
 (* fetch all rows in a cursor and return them as a list *)
 let rec orafetchall_ sth acc =
@@ -610,6 +645,7 @@ let rec orabindout sth bs cv =
 	end
   end;
   sth.binds <- (sth.binds + 1);
+  sth.out_pending <- true;
   ()
 
 (*}}}*)
