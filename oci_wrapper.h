@@ -9,6 +9,9 @@
 #define BREAKPOINT /**/
 #endif
 
+/* max length of a VARCHAR */
+#define MAXVARCHAR 4000
+
 /* Allocate the handles for error, server, service context and session in a struct for convenience */
 typedef struct {
   OCIError*   err;
@@ -33,7 +36,7 @@ typedef struct {
 typedef struct {
   int indicator;
   int rc;      /* return code */
-  OCINumber bufpp; /* pointer to the data */
+  OCINumber bufpp; /* the data */
   int alenp;   /* actual length */
 } out_number_t;
 
@@ -41,9 +44,17 @@ typedef struct {
 typedef struct {
   int indicator;
   int rc;      /* return code */
-  OCIDate bufpp; /* pointer to the data */
+  OCIDate bufpp; /* the data */
   int alenp;   /* actual length */
 } out_date_t;
+
+/* struct for storing the callback data for a varchar */
+typedef struct {
+  int indicator;
+  int rc;      /* return code */
+  char bufpp[MAXVARCHAR]; /* the data - how to use an OCIString here? */
+  int alenp;   /* actual length */
+} out_string_t;
 
 
 /* struct for context for dynamic bind callback */

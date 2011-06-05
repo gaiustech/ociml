@@ -140,9 +140,10 @@ external oci_aq_dequeue: oci_env -> oci_handles -> string -> oci_ptr -> int -> o
 external oci_bind_numeric_out_by_pos: oci_handles -> oci_statement -> oci_bindhandle -> int -> oci_ptr = "caml_oci_bind_numeric_out_by_pos"
 external oci_get_int_from_context: oci_handles -> oci_ptr -> int -> int = "caml_oci_get_int_from_context"
 external oci_get_float_from_context: oci_handles -> oci_ptr -> int -> float = "caml_oci_get_float_from_context"
-
 external oci_bind_date_out_by_pos: oci_handles -> oci_statement -> oci_bindhandle -> int -> oci_ptr = "caml_oci_bind_date_out_by_pos"
 external oci_get_date_from_context: oci_handles -> oci_ptr -> int -> float = "caml_oci_get_date_from_context"
+external oci_bind_string_out_by_pos: oci_handles -> oci_statement -> oci_bindhandle -> int -> oci_ptr = "caml_oci_bind_string_out_by_pos"
+external oci_get_string_from_context: oci_handles -> oci_ptr -> int -> string = "caml_oci_get_string_from_context"
 
 (* public interface *)
 module type OCIML =
@@ -279,6 +280,7 @@ let oraparse sth sqltext =
   sth.sth_op_time <- t2;
   sth.rows_affected <- 0;
   sth.out_pending <- false;
+  sth.out_counter <- 0;
   Hashtbl.clear sth.bound_vals; Hashtbl.clear sth.oci_ptrs;
   ()
     
@@ -434,6 +436,7 @@ let orafetch_select sth =
    sth.rows_affected. So we need to loop and pivot.
 *)
 let orafetch_out sth =
+  debug("orafetch_out: entered");
    let num_ptrs = Hashtbl.length sth.oci_ptrs in
    let rs = Array.make num_ptrs Null in
    let more_rows = (sth.out_counter < sth.rows_affected) in
@@ -448,6 +451,11 @@ let orafetch_out sth =
 		 rs.(i - 1) <- Integer (oci_get_int_from_context sth.parent_lda.lda (Hashtbl.find sth.oci_ptrs bs) sth.out_counter);
 	       |Number _ ->
 		 rs.(i - 1) <- Number (oci_get_float_from_context sth.parent_lda.lda (Hashtbl.find sth.oci_ptrs bs) sth.out_counter);
+	       |Varchar _ ->
+		 begin
+		   debug("orafetch_out: getting varchar");
+		   rs.(i - 1) <- Varchar (oci_get_string_from_context sth.parent_lda.lda (Hashtbl.find sth.oci_ptrs bs) sth.out_counter);
+		 end
 	       |Datetime _ ->
 		 begin
 		   let epoch = oci_get_date_from_context sth.parent_lda.lda (Hashtbl.find sth.oci_ptrs bs) sth.out_counter in
@@ -460,6 +468,7 @@ let orafetch_out sth =
 	 end
        |false ->
 	 begin
+	   debug("orafetch_out: end of result set");
 	   sth.out_pending <- false;
 	   sth.out_counter <- 0;
 	   Hashtbl.clear sth.oci_ptrs; (* this *ought* to result in them being GC'd with the C callback... *)
@@ -629,6 +638,11 @@ let rec orabindout sth bs cv =
 	    |Datetime _ ->
 	      begin
 		Hashtbl.replace sth.oci_ptrs bs (oci_bind_date_out_by_pos sth.parent_lda.lda sth.sth bh p);
+		Hashtbl.replace sth.out_types bs cv;
+	      end
+	    |Varchar _ ->
+	      begin
+		Hashtbl.replace sth.oci_ptrs bs (oci_bind_string_out_by_pos sth.parent_lda.lda sth.sth bh p);
 		Hashtbl.replace sth.out_types bs cv;
 	      end
 	    |_ -> debug("orabindout: this type not implemented yet")

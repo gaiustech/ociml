@@ -121,7 +121,7 @@ void caml_free_context_t(value cbct) {
 
 
 static struct custom_operations c_context_t_custom_ops = {
-  "c_alloc_t_custom_ops", &caml_free_alloc_t, NULL, NULL, NULL, NULL}; 
+  "c_alloc_t_custom_ops", &caml_free_context_t, NULL, NULL, NULL, NULL}; 
 
 
 /* allocate a bind handle as (using oci_alloc_bindhandle) ,OCIBindByPos with OCI_DATA_AT_EXEC, 
@@ -185,7 +185,7 @@ sb4 cbf_get_date(dvoid *ctxp, OCIBind *bindp, ub4 iter, ub4 index,
   if (index == 0) {
     int rows = 0;
     OCIAttrGet((dvoid*)bindp, OCI_HTYPE_BIND, (dvoid*)&rows, (ub4*)sizeof(int), OCI_ATTR_ROWS_RETURNED, cbct->err);
-    int sz = (rows + 1) * sizeof(out_date_t);
+    int sz = rows * sizeof(out_date_t);
     void* rs = (void*)malloc(sz);
     memcpy(cbct->cht.ptr, &rs, sizeof(void*)); /* ptr is now a pointer to a pointer */
 #ifdef DEBUG
@@ -274,6 +274,102 @@ value caml_oci_get_date_from_context(value handles, value context, value index) 
   snprintf(dbuf, 255, "caml_oci_get_date_from_context: epoch time is %.0f", d); debug(dbuf);
 #endif
   CAMLreturn(caml_copy_double(d));
+}
+
+/* same again for strings */
+sb4 cbf_get_string(dvoid *ctxp, OCIBind *bindp, ub4 iter, ub4 index,
+		 dvoid **bufpp, ub4 **alenp, ub1 *piecep,
+		 dvoid **indpp, ub2 **rcodepp) {
+
+  cb_context_t* cbct = (cb_context_t*)ctxp;
+  
+  /* find out how many rows we are expecting */
+  if (index == 0) {
+    int rows = 0;
+    OCIAttrGet((dvoid*)bindp, OCI_HTYPE_BIND, (dvoid*)&rows, (ub4*)sizeof(int), OCI_ATTR_ROWS_RETURNED, cbct->err);
+    int sz = rows * sizeof(out_string_t);
+    void* rs = (void*)malloc(sz);
+    memcpy(cbct->cht.ptr, &rs, sizeof(void*)); /* ptr is now a pointer to a pointer */
+#ifdef DEBUG
+    char dbuf[256]; snprintf(dbuf, 255, "cbf_get_string: rows=%d rs=%p cbct->cht.ptr=%p bytes=%d", rows, rs, *(void**)cbct->cht.ptr, sz); debug(dbuf);
+#endif
+  }
+  
+  out_string_t* offset = (out_string_t*) ((*(void**)cbct->cht.ptr) + (index * sizeof(out_string_t)));
+  *indpp =   (dvoid*)&offset->indicator;
+  *rcodepp = (dvoid*)&offset->rc;
+  *bufpp =   (dvoid*)&offset->bufpp;
+
+  offset->alenp = MAXVARCHAR;
+  *alenp =   (dvoid*)&offset->alenp;
+  *piecep = OCI_ONE_PIECE;
+
+#ifdef DEBUG
+  char dbuf[256]; snprintf(dbuf, 255, "cbf_get_string: iter=%d index=%d bindp=%p offset=%p indpp=%p rcodepp=%p bufpp=%p alenp=%p", iter, index, bindp, offset, *indpp, *rcodepp, *bufpp, *alenp); debug(dbuf);
+#endif
+
+#ifdef DEBUG
+  debug("leaving cbf_get_string");
+#endif
+  return OCI_CONTINUE;
+}
+
+
+/* do it for dates */
+value caml_oci_bind_string_out_by_pos(value handles, value stmt, value bindh, value pos) {
+  CAMLparam4(handles, stmt, bindh, pos);
+  oci_handles_t h = Oci_handles_val(handles);
+  OCIStmt* s = Oci_statement_val(stmt);
+  OCIBind* bh = Oci_bindhandle_val(bindh);
+  int p = Int_val(pos);
+  sword x;
+  
+  cb_context_t* cbct = (cb_context_t*)malloc(sizeof(cb_context_t));;
+  cbct->cht.ptr = (void*)malloc(sizeof(void*));
+  cbct->err     = h.err;
+
+#ifdef DEBUG
+  char dbuf[256]; snprintf(dbuf, 255, "caml_oci_bind_string_out_by_pos: pos=%d cbct=%p cbct.cht.ptr=%p", p, cbct, cbct->cht.ptr); debug(dbuf);
+#endif
+
+  /* bind by position */
+  x = OCIBindByPos(s, &bh, h.err, (ub4)p, (dvoid*)0, MAXVARCHAR, SQLT_CHR, 0, 0, 0, 0, 0, OCI_DATA_AT_EXEC);
+  CHECK_OCI(x, h);
+
+  /* bind in the callback */
+  x = OCIBindDynamic(bh, h.err, (dvoid*)cbct, cbf_no_data, (dvoid*)cbct, cbf_get_string);
+  CHECK_OCI(x, h);
+
+  value v = caml_alloc_custom(&c_context_t_custom_ops, sizeof(cb_context_t), 0, 1);
+  C_context_val(v) = *cbct;
+  CAMLreturn(v);
+}
+
+/* get a string from the memory populated by the callback function */
+char* get_string_from_context(oci_handles_t h, cb_context_t* cbct, int index) {
+  out_string_t* offset = (out_string_t*)(*(void**)(cbct->cht.ptr) + (index * sizeof(out_string_t)));
+  offset->bufpp[offset->alenp] = '\0';
+
+#ifdef DEBUG
+  char dbuf[256]; snprintf(dbuf, 255, "get_string_from_context: alenp=%d string='%s'", offset->alenp, offset->bufpp); debug(dbuf);
+#endif
+  
+  return offset->bufpp;
+}
+
+value caml_oci_get_string_from_context(value handles, value context, value index) {
+  CAMLparam3(handles, context, index);
+  oci_handles_t h = Oci_handles_val(handles);
+  cb_context_t  c = C_context_val(context);
+  int i = Int_val(index);
+
+#ifdef DEBUG
+  char dbuf[256]; snprintf(dbuf, 255, "caml_oci_get_string_from_context: entered, index=%d", i); debug(dbuf);
+#endif
+
+  char* s = get_string_from_context(h, &c, i);
+
+  CAMLreturn(caml_copy_string(s));
 }
 
 /* end of file */
