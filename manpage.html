@@ -56,7 +56,7 @@
      
      <dt><pre><b>orabind</b> <i>statement-handle position value</i></pre></dt>
      <dd><p align=justify>Binds values into a parsed SQL statement handle, by name or by position. Once a statement has been parsed once, it can be bound and executed as many times as is necessary. Binding is suitable for <code>SELECT</code>, <code>INSERT</code>, <code>UPDATE</code> and <code>DELETE</code> statements. Example below. </p></dd>
-     
+
      <dt><pre><b>oraexec</b> <i>statement-handle</i></pre></dt>
      <dd><p align=justify>Executes a previously parsed and if necessary bound SQL statement. For example (from <code>ociml_sample.ml</code> included with the distribution), to bind a row using the position technique, execute it, then bind another row by name:
 	 <pre>
@@ -77,6 +77,17 @@
 	 Missing colons are inserted automagically. This also illustrates the four currently supported datatypes.</p>
      </dd>
      
+     <dt><pre><b>orabindout</b> <i>statement-handle position dummyvalue</i></pre></dt>
+     <dd><p align=justify>Binds placeholder values into a parsed SQL statement handle, by position only, for use with the <code>RETURNING</code> clause. These are so OCI*ML can correctly allocate and convert the types in OCI, e.g.</p>
+       <pre>
+	 oraparse sth "insert into datetab (c1) values (sysdate + 10) returning c1 into :date1";
+	 let d = localtime 0.0;
+	 orabindout sth (Pos 1)  (Datetime d);
+	 oraexec sth;
+	 orafetchall sth;
+       </pre>
+     </dd>
+
      <dt><pre><b>oracommit</b> <i>logon-handle</i></pre></dt>
      <dd><p align=justify>Commits any outstanding work on all the statement handles associated with this connection. Finer grained transaction control requires opening more connections to the same database, and creating statement handles from them. </p></dd>
      
