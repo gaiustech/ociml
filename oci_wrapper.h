@@ -29,13 +29,22 @@ typedef struct {
   void* ptr;
 } c_alloc_t;
 
-/* struct for storing the callback data */
+/* struct for storing the callback data for a number */
 typedef struct {
   int indicator;
   int rc;      /* return code */
   OCINumber bufpp; /* pointer to the data */
   int alenp;   /* actual length */
-} out_data_t;
+} out_number_t;
+
+/* struct for storing the callback data for a date */
+typedef struct {
+  int indicator;
+  int rc;      /* return code */
+  OCIDate bufpp; /* pointer to the data */
+  int alenp;   /* actual length */
+} out_date_t;
+
 
 /* struct for context for dynamic bind callback */
 typedef struct {

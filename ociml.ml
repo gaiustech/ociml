@@ -137,8 +137,12 @@ external oci_aq_dequeue: oci_env -> oci_handles -> string -> oci_ptr -> int -> o
 (*}}}*) 
 
 (* Out variable functions - oci_out.c *)
-external oci_bind_int_out_by_pos: oci_handles -> oci_statement -> oci_bindhandle -> int -> oci_ptr = "caml_oci_bind_int_out_by_pos"
+external oci_bind_numeric_out_by_pos: oci_handles -> oci_statement -> oci_bindhandle -> int -> oci_ptr = "caml_oci_bind_numeric_out_by_pos"
 external oci_get_int_from_context: oci_handles -> oci_ptr -> int -> int = "caml_oci_get_int_from_context"
+external oci_get_float_from_context: oci_handles -> oci_ptr -> int -> float = "caml_oci_get_float_from_context"
+
+external oci_bind_date_out_by_pos: oci_handles -> oci_statement -> oci_bindhandle -> int -> oci_ptr = "caml_oci_bind_date_out_by_pos"
+external oci_get_date_from_context: oci_handles -> oci_ptr -> int -> float = "caml_oci_get_date_from_context"
 
 (* public interface *)
 module type OCIML =
@@ -442,6 +446,14 @@ let orafetch_out sth =
 	     match (Hashtbl.find sth.out_types bs) with
 	       |Integer _ -> 
 		 rs.(i - 1) <- Integer (oci_get_int_from_context sth.parent_lda.lda (Hashtbl.find sth.oci_ptrs bs) sth.out_counter);
+	       |Number _ ->
+		 rs.(i - 1) <- Number (oci_get_float_from_context sth.parent_lda.lda (Hashtbl.find sth.oci_ptrs bs) sth.out_counter);
+	       |Datetime _ ->
+		 begin
+		   let epoch = oci_get_date_from_context sth.parent_lda.lda (Hashtbl.find sth.oci_ptrs bs) sth.out_counter in
+		   debug(sprintf "gotten epoch time back as %f" epoch);
+		   rs.(i - 1) <- Datetime (localtime epoch);
+		 end
 	       |_ -> ();
 	   done;
 	   sth.out_counter <- (sth.out_counter +1); 
@@ -609,9 +621,14 @@ let rec orabindout sth bs cv =
       |Pos p ->
 	begin
 	  match cv with
-	    |Integer _ ->
+	    |Integer _ |Number _ ->
 	      begin
-		Hashtbl.replace sth.oci_ptrs bs (oci_bind_int_out_by_pos sth.parent_lda.lda sth.sth bh p);
+		Hashtbl.replace sth.oci_ptrs bs (oci_bind_numeric_out_by_pos sth.parent_lda.lda sth.sth bh p);
+		Hashtbl.replace sth.out_types bs cv;
+	      end
+	    |Datetime _ ->
+	      begin
+		Hashtbl.replace sth.oci_ptrs bs (oci_bind_date_out_by_pos sth.parent_lda.lda sth.sth bh p);
 		Hashtbl.replace sth.out_types bs cv;
 	      end
 	    |_ -> debug("orabindout: this type not implemented yet")

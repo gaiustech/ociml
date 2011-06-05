@@ -40,10 +40,12 @@ double ocidate_to_epoch(OCIDate* ocidate) {
   ut->tm_year = year - 1900; ut->tm_mon = month - 1; ut->tm_mday = day;
   ut->tm_hour = hour - 1;    ut->tm_min = minute;    ut->tm_sec = second - 1;
 
+  double d = (double)mktime(ut);
+
 #ifdef DEBUG
-  char dbuf[256]; snprintf(dbuf, 255, "ocidate_to_epoch: epoch=%f year=%d month=%d day=%d", (double)mktime(ut), ut->tm_year + 1900, ut->tm_mon + 1, ut->tm_mday); debug(dbuf);
+  char dbuf[256]; snprintf(dbuf, 255, "ocidate_to_epoch: epoch=%f year=%d month=%d day=%d", d, ut->tm_year + 1900, ut->tm_mon + 1, ut->tm_mday); debug(dbuf);
 #endif
-  return (double)mktime(ut);
+  return d;
 }
 
 /* dereference a pointer to a string */
