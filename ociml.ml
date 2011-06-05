@@ -171,7 +171,7 @@ sig
   val oradeqtime:   meta_handle -> int -> unit
   val oraprefetch:  meta_statement -> int -> unit
   val oraprompt:    string
-  val oraprefetch_default: int
+  val oraprefetch_default: int 
 end
 
 (* actual implementation *)
@@ -432,52 +432,52 @@ let orafetch_select sth =
 	raise Not_found
       |_    -> raise (Oci_exception (e_code, e_desc)))
 
+
+let hash_keys h = Hashtbl.fold (fun k v acc -> k::acc) h []
+
 (* build a result set from the out variables. we know how many we have from the 
    number of keys in sth.oci_ptrs. We know how many rows we have from 
    sth.rows_affected. So we need to loop and pivot.
 *)
 let orafetch_out sth =
   debug("orafetch_out: entered");
-   let num_ptrs = Hashtbl.length sth.oci_ptrs in
+   let num_ptrs = Hashtbl.length sth.out_types in
    let rs = Array.make num_ptrs Null in
    let more_rows = (sth.out_counter < sth.rows_affected) in
-   begin
-     match more_rows with
-       |true ->
-	 begin
-	   for i = 1 to num_ptrs do
-	     let bs = (Pos i) in
-	     match (Hashtbl.find sth.out_types bs) with
-	       |Integer _ -> 
-		 rs.(i - 1) <- Integer (oci_get_int_from_context sth.parent_lda.lda (Hashtbl.find sth.oci_ptrs bs) sth.out_counter);
-	       |Number _ ->
-		 rs.(i - 1) <- Number (oci_get_float_from_context sth.parent_lda.lda (Hashtbl.find sth.oci_ptrs bs) sth.out_counter);
-	       |Varchar _ ->
-		 begin
-		   debug("orafetch_out: getting varchar");
-		   rs.(i - 1) <- Varchar (oci_get_string_from_context sth.parent_lda.lda (Hashtbl.find sth.oci_ptrs bs) sth.out_counter);
-		 end
-	       |Datetime _ ->
-		 begin
-		   let epoch = oci_get_date_from_context sth.parent_lda.lda (Hashtbl.find sth.oci_ptrs bs) sth.out_counter in
-		   debug(sprintf "gotten epoch time back as %f" epoch);
-		   rs.(i - 1) <- Datetime (localtime epoch);
-		 end
-	       |_ -> ();
-	   done;
-	   sth.out_counter <- (sth.out_counter +1); 
-	 end
-       |false ->
-	 begin
-	   debug("orafetch_out: end of result set");
-	   sth.out_pending <- false;
-	   sth.out_counter <- 0;
-	   Hashtbl.clear sth.oci_ptrs; (* this *ought* to result in them being GC'd with the C callback... *)
-	   raise Not_found;
-	 end
-   end;
+   let i = ref 0 in
+   debug(sprintf "num_ptrs=%d out_counter=%d rows_affected=%d more_rows=%b" num_ptrs sth.out_counter sth.rows_affected more_rows);
+   (match more_rows with
+     |true ->
+       List.iter (fun bs ->
+	 (match (Hashtbl.find sth.out_types bs) with
+	   |Integer _ -> 
+	     rs.(!i) <- Integer (oci_get_int_from_context sth.parent_lda.lda (Hashtbl.find sth.oci_ptrs bs) sth.out_counter);
+	   |Number _ ->
+	     rs.(!i) <- Number (oci_get_float_from_context sth.parent_lda.lda (Hashtbl.find sth.oci_ptrs bs) sth.out_counter);
+	   |Varchar _ ->
+	     begin
+	       debug("orafetch_out: getting varchar");
+	       rs.(!i) <- Varchar (oci_get_string_from_context sth.parent_lda.lda (Hashtbl.find sth.oci_ptrs bs) sth.out_counter);
+	     end
+	   |Datetime _ ->
+	     begin
+	       let epoch = oci_get_date_from_context sth.parent_lda.lda (Hashtbl.find sth.oci_ptrs bs) sth.out_counter in
+	       debug(sprintf "gotten epoch time back as %f" epoch);
+	       rs.(!i) <- Datetime (localtime epoch);
+	     end
+	   |_ -> ());
+	 sth.out_counter <- (sth.out_counter +1); i := (!i + 1);
+       ) (hash_keys sth.out_types) 
+     |false ->
+       (begin
+	 debug("orafetch_out: end of result set");
+	 sth.out_pending <- false;
+	 sth.out_counter <- 0;
+	 Hashtbl.clear sth.oci_ptrs; (* this *ought* to result in them being GC'd with the C callback... *)
+	 raise Not_found;
+	end));
    rs
-
+	 
 (* overload orafetch so it can be used for regular selects and for out variables *)
 let orafetch sth = 
   match sth.out_pending with
