@@ -6,7 +6,7 @@
      <h2>NAME</h2>
      <dl><dd>OCI*ML - Oracle database access commands for OCaml. </dd></dl>
      <h2>INTRODUCTION</h2>
-     <dl><dd><p align=justify>OCI*ML is an extension to the OCaml language designed to provide access to an Oracle Database server. Its interface is closely based on OraTcl which provides the same functionality for the Tcl/Tk language, although they have no code in common, and not all OraTcl functionality is implemented (yet). The name follows the Oracle convention (e.g. SQL*Plus, Pro*C) as it is implemented using OCI, the Oracle Call Interface. Programmers using OCI*ML should be familiar with basic concepts of database programming, such as connections, cursors and result sets. This manpage documents version 0.2.1.</p>
+     <dl><dd><p align=justify>OCI*ML is an extension to the OCaml language designed to provide access to an Oracle Database server. Its interface is closely based on OraTcl which provides the same functionality for the Tcl/Tk language, although they have no code in common, and not all OraTcl functionality is implemented (yet). The name follows the Oracle convention (e.g. SQL*Plus, Pro*C) as it is implemented using OCI, the Oracle Call Interface. Programmers using OCI*ML should be familiar with basic concepts of database programming, such as connections, cursors and result sets. This manpage documents version 0.2.2.</p>
 	 
 	 <p align=justify>At present, 4 major datatypes are supported: 
 	   <ul>
@@ -19,13 +19,12 @@
      <pre>
        open Ociml
        </pre>
-     The easiest way to explore the module is via the custom toplevel <code>ocimlsh</code>, for example:
+     The easiest way to explore the module is via the custom toplevel <code>ocimlsh</code> using the included <code>.ocamlinit</code> configuration, for example:
      <pre>
        $ make shell
        $ ./ocimlsh
                Objective Caml version 3.12.0
  
-       # open Ociml;;
        # let lda = oralogon "gaius/abc123";;
        ...
      </pre>
@@ -86,6 +85,7 @@
 	 oraexec sth;
 	 orafetchall sth;
        </pre>
+       <p align=justify>The <code>orafetch</code> and <code>orafetchall</code> commands work identically in this mode as to <code>SELECT</code> statements. This is also the method for <code>OUT</code> parameters in PL/SQL stored procedures.</p>
      </dd>
 
      <dt><pre><b>oracommit</b> <i>logon-handle</i></pre></dt>
