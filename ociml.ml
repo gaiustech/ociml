@@ -171,6 +171,7 @@ sig
   val oradeqtime:   meta_handle -> int -> unit
   val oraprefetch:  meta_statement -> int -> unit
   val oraprompt:    string
+  val oraprefetch_default: int
 end
 
 (* actual implementation *)
