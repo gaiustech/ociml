@@ -1,7 +1,7 @@
 # Debugging Makefile for OCI*ML project
 
 CCFLAGS	= -ccopt -I/usr/lib/ocaml -ccopt -I$(ORACLE_HOME)/rdbms/public -ccopt -Wall
-COBJS	= oci_common.o oci_connect.o oci_types.o oci_dml.o oci_select.o oci_aq.o oci_blob.o oci_out.o
+COBJS	= oci_common.o oci_connect.o oci_types.o oci_dml.o oci_select.o oci_aq.o oci_blob.o oci_out.o oci_bulkdml.o
 MLOBJS	= ociml_utils.cmo log_message.cmo report.cmo ociml.cmo
 CCLIBS  = -cclib -L$(ORACLE_HOME)/lib -cclib -lclntsh
 
