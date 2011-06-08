@@ -1,4 +1,4 @@
-(* OCI*ML 0.2.2 *)
+(* OCI*ML 0.2.3 *)
 
 A simple Oracle API for OCaml. See blog for latest: http://gaiustech.wordpress.com 
 
@@ -52,6 +52,7 @@ Currently supported operations:
 - AQ enqueue and blocking/timed dequeue
 - prepared statements (incl. RETURNING clause)
 - prefetch on SELECTs
+- bulk/array DML
 
 The library is structured as a thin wrapper around the OCI[1] library in C, on 
 top of which is a higher level library patterned after OraTcl[2], as much as 
@@ -72,7 +73,6 @@ TODO (in no particular order):
 	- SAVEPOINTs*
 	- reconnection callback
 	- connection to a specific edition*
-	- array INSERT
 	- "make install" target that plays nicely with ocamlfind
 	- DESC that includes all metadata
 	- Proper documentation! 
