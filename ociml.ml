@@ -65,7 +65,7 @@ let decode_col_type x =
     |1  (* oci_sqlt_chr *)    -> "VARCHAR2"
     |_  (* something else! *) -> string_of_int x
 	  	  
-(*{{{ setup functions, in order in which they should be called - oci_connect.c *)
+(* setup functions, in order in which they should be called - oci_connect.c *)
 external oci_env_create: unit -> oci_env = "caml_oci_env_create"
 external oci_alloc_handles: oci_env -> oci_handles = "caml_oci_alloc_handles"
 external oci_server_attach: oci_handles -> string -> unit = "caml_oci_server_attach" (* takes db name *)
@@ -97,34 +97,33 @@ external oci_bind_by_pos: oci_handles -> oci_statement -> oci_bindhandle -> (int
 external oci_bind_date_by_pos: oci_handles -> oci_statement -> oci_bindhandle -> int -> float -> oci_ptr = "caml_oci_bind_date_by_pos"
 external oci_bind_by_name: oci_handles -> oci_statement -> oci_bindhandle -> (string * int) -> col_value -> oci_ptr = "caml_oci_bind_by_name" 
 external oci_bind_date_by_name: oci_handles -> oci_statement -> oci_bindhandle -> string -> float -> oci_ptr = "caml_oci_bind_date_by_name" 
-(*}}}*)
 
-(*{{{ fetching - oci_select.c *)
+(* fetching - oci_select.c *)
 external oci_get_column_types: oci_handles -> oci_statement -> col_value array = "caml_oci_get_column_types"
 external oci_define: oci_handles -> oci_statement -> int -> (int * bool) -> int -> define_spec = "caml_oci_define"
 external oci_fetch: oci_handles -> oci_statement -> unit = "caml_oci_fetch"
 external oci_set_prefetch: oci_handles -> oci_statement -> int -> unit = "caml_oci_set_prefetch"
 external oci_get_rows_affected: oci_handles -> oci_statement -> int = "caml_oci_get_rows_affected"
-(*}}}*)
 
-(*{{{ type conversions - oci_types.c *)
+
+(* type conversions - oci_types.c *)
 external oci_get_defined_string: oci_ptr -> string = "caml_oci_get_defined_string"
 external oci_get_date_as_double: oci_ptr -> float = "caml_oci_get_date_as_double"
 external oci_get_double: oci_handles -> oci_ptr -> float = "caml_oci_get_double"
+
 external oci_get_int: oci_handles -> oci_ptr -> int = "caml_oci_get_int"
-(*}}}*)
 
 (* C heap memory functions - oci_common.c *)
 external oci_alloc_c_mem: int -> oci_ptr = "caml_alloc_c_mem"
 external oci_size_of_pointer: unit -> int = "caml_oci_size_of_pointer"
-external oci_size_of_number: unit -> int = "caml_oci_size_of_number"
+external oci_size_of_number: unit -> int = "caml_oci_size_of_number" (* Size of OCINumber *)
 external oci_constant_assign: oci_ptr -> int -> int -> unit = "c_write_int_at_offset"
 external oci_write_ptr_at_offset: oci_ptr -> int -> oci_ptr -> unit = "caml_write_ptr_at_offset"
 external oci_read_ptr_at_offset: oci_ptr -> int -> oci_ptr = "caml_read_ptr_at_offset"
 external oci_write_int_at_offset: oci_handles -> oci_ptr -> int -> int -> unit = "caml_oci_write_int_at_offset"
 external oci_write_flt_at_offset: oci_handles -> oci_ptr -> int -> float -> unit = "caml_oci_write_flt_at_offset"
 
-(*{{{ AQ functions - oci_aq.c *)
+(* AQ functions - oci_aq.c *)
 
 external oci_get_tdo_: oci_env -> oci_handles -> string -> oci_ptr = "caml_oci_get_tdo"
 external oci_string_assign: oci_env -> oci_handles -> string -> oci_ptr = "caml_oci_string_assign_text"
@@ -132,9 +131,8 @@ external oci_aq_enqueue: oci_handles -> string -> oci_ptr -> oci_ptr -> oci_ptr 
 external oci_int_from_number: oci_handles -> oci_ptr -> int -> int = "caml_oci_int_from_number"
 external oci_flt_from_number: oci_handles -> oci_ptr -> int -> float = "caml_oci_flt_from_number"
 external oci_string_from_string: oci_env -> oci_ptr -> string = "caml_oci_string_from_string"
-external oci_aq_dequeue: oci_env -> oci_handles -> string -> oci_ptr -> int -> oci_ptr = "caml_oci_aq_dequeue"
 
-(*}}}*) 
+external oci_aq_dequeue: oci_env -> oci_handles -> string -> oci_ptr -> int -> oci_ptr = "caml_oci_aq_dequeue"
 
 (* Out variable functions - oci_out.c *)
 external oci_bind_numeric_out_by_pos: oci_handles -> oci_statement -> oci_bindhandle -> int -> oci_ptr = "caml_oci_bind_numeric_out_by_pos"
@@ -144,6 +142,20 @@ external oci_bind_date_out_by_pos: oci_handles -> oci_statement -> oci_bindhandl
 external oci_get_date_from_context: oci_handles -> oci_ptr -> int -> float = "caml_oci_get_date_from_context"
 external oci_bind_string_out_by_pos: oci_handles -> oci_statement -> oci_bindhandle -> int -> oci_ptr = "caml_oci_bind_string_out_by_pos"
 external oci_get_string_from_context: oci_handles -> oci_ptr -> int -> string = "caml_oci_get_string_from_context"
+
+(* bulk dml functions - oci_bulkdml.c *)
+external oci_size_of_int: unit -> int = "caml_oci_get_size_of_int" (* native datatypes, not OCINumber *)
+external oci_size_of_float: unit -> int = "caml_oci_get_size_of_float"
+external oci_size_of_date: unit -> int = "caml_oci_get_size_of_date" (* this one is an OCIDate *)
+external oci_write_nat_int_at_offset: oci_ptr -> int -> int -> unit = "caml_oci_write_nat_int_at_offset"
+external oci_write_nat_flt_at_offset: oci_ptr -> int -> float -> unit = "caml_oci_write_nat_flt_at_offset"
+external oci_write_chr_at_offset: oci_ptr -> int -> string -> unit = "caml_oci_write_chr_at_offset"
+external oci_write_odt_at_offset: oci_ptr -> int -> float -> unit = "caml_oci_write_odt_at_offset" (* takes a double and converts it to an OCIDate *)
+external oci_bind_bulk_int: oci_handles -> oci_statement -> oci_bindhandle -> oci_ptr -> int -> unit = "caml_oci_bind_bulk_int"
+external oci_bind_bulk_flt: oci_handles -> oci_statement -> oci_bindhandle -> oci_ptr -> int -> unit = "caml_oci_bind_bulk_flt"
+external oci_bind_bulk_chr: oci_handles -> oci_statement -> oci_bindhandle -> oci_ptr -> (int * int) -> unit = "caml_oci_bind_bulk_chr"
+external oci_bind_bulk_odt: oci_handles -> oci_statement -> oci_bindhandle -> oci_ptr -> (int * int) -> unit = "caml_oci_bind_bulk_odt"
+external oci_bulk_exec: oci_handles -> oci_statement -> int -> bool -> unit = "caml_oci_bulk_exec"
 
 (* public interface *)
 module type OCIML =
@@ -175,7 +187,7 @@ sig
 end
 
 (* actual implementation *)
-(*{{{ 0.1 functionality - connections and DML *)
+(* 0.1 functionality - connections and DML *)
 
 let handle_seq = ref 0 (* unique ids for handles *)
 let statement_seq = ref 0 (* unique ids for statements *)
@@ -303,7 +315,7 @@ let oraexec sth =
   ()
 
 (* quick convenient function for binding an array of col_values to an sth and executing *)
-let orabindexec sth cval = 
+let orabindexec_slow sth cval = 
   List.iter (fun cva -> Array.iteri (fun i v -> orabind sth (Pos (i + 1)) v) cva) cval;
   oraexec sth;
   ()
@@ -484,7 +496,7 @@ let orafetch sth =
     |false -> orafetch_select sth
     |true  -> orafetch_out sth
 
-(* fetch all rows in a cursor and return them as a list *)
+(* fetch all rows in a cursor and return them as a list - relying on prefetch to make this fast *)
 let rec orafetchall_ sth acc =
   try
     orafetchall_ sth (acc @ [(orafetch sth)])
@@ -494,9 +506,7 @@ let rec orafetchall_ sth acc =
 let orafetchall sth = 
   orafetchall_ sth []
 
-(*}}}*)
-
-(*{{{ 0.2 functionality - object type AQ *)
+(* 0.2 functionality - object type AQ *)
 
 (* Get the TDO of the message type with global env, handles (already unpacked) and type name in 
    UPPERCASE - returns a pointer to it in the OCI object cache *)
@@ -615,9 +625,8 @@ let oradequeue lda queue_name message_type payload =
 	match e_code with
 	  |25228 -> raise Not_found (* nothing on the queue and timeout set *)
 	  |_     -> raise (Oci_exception (e_code, e_desc))
-(*}}}*)
 
-(*{{{ 0.2.2 OUT binds - also see orafetch modifications above *)
+(* 0.2.2 OUT binds - also see orafetch modifications above *)
 let rec orabindout sth bs cv = 
   let bh = 
     (try
@@ -657,5 +666,92 @@ let rec orabindout sth bs cv =
   sth.out_pending <- true;
   ()
 
-(*}}}*)
+(* bulk DML implementation of orabindexec *)
+let orabindexec_bulk sth cval =
+  let batch_size = List.length cval in
+  let first_row = List.hd cval in
+  let num_cols = Array.length first_row in
+  debug (sprintf "orabindexec_bulk: batch_size=%d num_cols=%d" batch_size num_cols);
+  (* allocate bind handles for each position *)
+  Hashtbl.clear sth.bound_vals; Hashtbl.clear sth.oci_ptrs;
+  for i = 1 to num_cols do
+    Hashtbl.add sth.bound_vals (Pos i) (oci_alloc_bindhandle ())
+  done;
+  
+  (* get the sizes of each of the 4 types, and the longest string - since i am expecting
+     the bulk of the work to be on the Oracle side, the speedup of just assuming 4k is not
+     worth it in memory usage *)
+  let int_size = oci_size_of_int () in
+  let float_size = oci_size_of_float () in
+  let date_size = oci_size_of_date () in
+  let pointer_size = oci_size_of_pointer () in 
+  let string_size = ref 0 in
+  List.iter (fun item ->
+    Array.iter (fun member ->
+      match member with
+	|Varchar v ->
+	  let l = String.length v in
+	  if (l > !string_size) 
+	  then string_size := l
+	  else ()
+	|_ -> ()
+    ) item
+  ) cval;
+  
+  (* align the string size *)
+  string_size := ((!string_size/pointer_size) + 1) * pointer_size;
+  debug(sprintf "orabindexec_bulk: int_size=%d float_size=%d date_size(aligned)=%d string_size(aligned)=%d" int_size float_size date_size !string_size);
+
+  (* for each column, allocate enough storage for the batch *)
+  Array.iteri (fun i x -> 
+    Hashtbl.add sth.oci_ptrs (Pos (i + 1)) 
+      (oci_alloc_c_mem 
+	 (match x with
+	   |Integer _  -> batch_size * int_size
+	   |Number _   -> batch_size * float_size
+	   |Varchar _  -> batch_size * !string_size
+	   |Datetime _ -> batch_size * date_size
+	   |_ -> debug ("orabindexec_bulk: unknown type"); 0
+	 )
+      )
+  ) first_row;
+    
+  (* for each column in each row, get its oci_ptr1 from its bind spec, then 
+     write it at size*row_num bytes offset *)
+  let row_count = ref 0 in
+  List.iter (fun row -> 
+      Array.iteri (fun i x -> 
+	let ptr = (Hashtbl.find sth.oci_ptrs (Pos (i + 1))) in
+	match x with
+	  |Integer i  -> oci_write_nat_int_at_offset ptr (!row_count * int_size) i
+	  |Number n   -> oci_write_nat_flt_at_offset ptr (!row_count * float_size) n
+	  |Varchar v  -> oci_write_chr_at_offset ptr (!row_count * !string_size) v
+	  |Datetime d -> oci_write_odt_at_offset ptr (!row_count * date_size) (date_to_double d)
+	  |_ -> debug ("orabindexec_bulk: unknown type")
+	
+      ) row;
+    row_count := (!row_count +1);
+  ) cval;
+
+  (* bind each pointer to the corresponding bindhandle *)
+  Array.iteri (fun i x -> 
+    let bs = (Pos (i+1)) in
+    let bh = Hashtbl.find sth.bound_vals bs in
+    let ptr = Hashtbl.find sth.oci_ptrs bs in
+    match x with
+      |Integer _  -> oci_bind_bulk_int sth.parent_lda.lda sth.sth bh ptr i
+      |Number _   -> oci_bind_bulk_flt sth.parent_lda.lda sth.sth bh ptr i
+      |Varchar _  -> oci_bind_bulk_chr sth.parent_lda.lda sth.sth bh ptr (!string_size, i)
+      |Datetime _ -> oci_bind_bulk_odt sth.parent_lda.lda sth.sth bh ptr (date_size,  i)
+      |_ -> ()
+  ) first_row;
+
+  (* finally bulk execute *)
+  oci_bulk_exec sth.parent_lda.lda sth.sth batch_size sth.parent_lda.auto_commit;
+  sth.rows_affected <- oci_get_rows_affected sth.parent_lda.lda sth.sth;
+  ()
+    
+let orabindexec = orabindexec_bulk
+
 (* End of file *)
+    
