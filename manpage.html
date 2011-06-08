@@ -107,7 +107,7 @@
 	 in
 	     orabindexec sth my_constants; 
        </pre>
-       In the future this will most likely become true bulk DML.
+       The function is implemented as bulk DML and can be over 100&times; faster than repeated individual <code>orabind</code>/<code>oraexec</code> calls.
      </dd>
 
  <dt><pre><b>orafetch</b> <i>statement-handle</i> &rarr; <i>col-value array</i></pre></dt>
