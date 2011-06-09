@@ -152,7 +152,6 @@ value caml_oci_bind_bulk_odt(value handles, value stmt, value bindh, value cht, 
   CAMLreturn(Val_unit);
 }
 
-
 value caml_oci_bulk_exec(value handles, value stmt, value num_rows, value auto_commit) {
   CAMLparam4(handles, stmt, num_rows, auto_commit);
   oci_handles_t h = Oci_handles_val(handles);
@@ -160,7 +159,7 @@ value caml_oci_bulk_exec(value handles, value stmt, value num_rows, value auto_c
   int nr = Int_val(num_rows);
   int ac = Bool_val(auto_commit);
   sword x;
-  
+
   caml_release_runtime_system();
   if (!ac) { /* run query normally */
     x = OCIStmtExecute(h.svc, s, h.err, nr,  0, (OCISnapshot*) NULL, (OCISnapshot*) NULL, OCI_DEFAULT);

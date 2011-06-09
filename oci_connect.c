@@ -90,8 +90,9 @@ value caml_oci_sess_set_attr(value handles, value attr_name, value attr_value) {
   oci_handles_t h = Oci_handles_val(handles);
   char* v = String_val(attr_value);
   int n = Int_val(attr_name);
-  OCIAttrSet(h.ses, OCI_HTYPE_SESSION,(dvoid *)v, strlen(v), n, h.err);
-  
+  sword x = OCIAttrSet(h.ses, OCI_HTYPE_SESSION,(dvoid *)v, strlen(v), n, h.err);
+  CHECK_OCI(x, h);
+
   CAMLreturn(Val_unit);
 }
 

@@ -197,5 +197,16 @@ value caml_read_ptr_at_offset(value cht, value offset) {
   CAMLreturn(v);
 }
 
+/* return the OCI version that OCI*ML was compiled with */
+value caml_oci_version() {
+  CAMLparam0();
+  CAMLlocal1(ver);
+
+  ver = caml_alloc(2, 0);
+  Store_field(ver, 0, Val_int(OCI_MAJOR_VERSION));
+  Store_field(ver, 1, Val_int(OCI_MINOR_VERSION));
+
+  CAMLreturn(ver);
+}
 
 /* end of file */

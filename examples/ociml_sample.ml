@@ -26,6 +26,9 @@ let () =
     (* open a new cursor/statement handle *)
     let sth = oraopen lda in
 
+    (* start tracing on the oracle side *)
+    orasql sth "alter session set events '10046 trace name context forever, level 12'";
+
     (* execute one SQL statement - note all these functions can easily be 
        curried e.g let do_sql = (orasql sth) in do_sql "..." 
     *)

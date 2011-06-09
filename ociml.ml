@@ -122,6 +122,7 @@ external oci_write_ptr_at_offset: oci_ptr -> int -> oci_ptr -> unit = "caml_writ
 external oci_read_ptr_at_offset: oci_ptr -> int -> oci_ptr = "caml_read_ptr_at_offset"
 external oci_write_int_at_offset: oci_handles -> oci_ptr -> int -> int -> unit = "caml_oci_write_int_at_offset"
 external oci_write_flt_at_offset: oci_handles -> oci_ptr -> int -> float -> unit = "caml_oci_write_flt_at_offset"
+external oci_version: unit -> (int * int) = "caml_oci_version"
 
 (* AQ functions - oci_aq.c *)
 
@@ -177,13 +178,15 @@ sig
   val oradesc:      meta_handle -> string -> string array
   val oracols:      meta_statement -> string array
   val orafetch:     meta_statement -> col_value array
+  val orafetchall:  meta_statement -> col_value array list
   val oranullval:   col_value -> unit
   val oraenqueue:   meta_handle -> string -> string -> col_value array -> unit
   val oradequeue:   meta_handle -> string -> string -> col_value array -> col_value array
   val oradeqtime:   meta_handle -> int -> unit
   val oraprefetch:  meta_statement -> int -> unit
   val oraprompt:    string
-  val oraprefetch_default: int 
+  val oraprefetch_default: int
+  val oci_version:  unit -> (int * int)
 end
 
 (* actual implementation *)
@@ -303,7 +306,9 @@ let oraparse sth sqltext =
 let oraexec sth =
   let t1 = gettimeofday () in
   oci_set_prefetch sth.parent_lda.lda sth.sth sth.prefetch_rows;
+  oci_sess_set_attr sth.parent_lda.lda oci_attr_action (sprintf "oraexec: starting %d" sth.statement_id);
   oci_statement_execute sth.parent_lda.lda sth.sth sth.parent_lda.auto_commit false;
+  oci_sess_set_attr sth.parent_lda.lda oci_attr_action (sprintf "oraexec: completed %d" sth.statement_id);
   let t2 = gettimeofday () -. t1 in
   debug (sprintf "statement handle %d executed in %fs" sth.statement_id t2);
   sth.execs <- (sth.execs + 1);
@@ -503,8 +508,11 @@ let rec orafetchall_ sth acc =
   with
     |Not_found -> acc
 	  
-let orafetchall sth = 
-  orafetchall_ sth []
+let orafetchall sth =
+  oci_sess_set_attr sth.parent_lda.lda oci_attr_action "orafetchall: starting";
+  let rs = orafetchall_ sth [] in
+  oci_sess_set_attr sth.parent_lda.lda oci_attr_action "orafetchall: done";
+  rs
 
 (* 0.2 functionality - object type AQ *)
 
@@ -672,6 +680,7 @@ let orabindexec_bulk sth cval =
   let first_row = List.hd cval in
   let num_cols = Array.length first_row in
   debug (sprintf "orabindexec_bulk: batch_size=%d num_cols=%d" batch_size num_cols);
+  oci_sess_set_attr sth.parent_lda.lda oci_attr_action "orabindexec_bulk: running";
   (* allocate bind handles for each position *)
   Hashtbl.clear sth.bound_vals; Hashtbl.clear sth.oci_ptrs;
   for i = 1 to num_cols do
@@ -749,6 +758,7 @@ let orabindexec_bulk sth cval =
   (* finally bulk execute *)
   oci_bulk_exec sth.parent_lda.lda sth.sth batch_size sth.parent_lda.auto_commit;
   sth.rows_affected <- oci_get_rows_affected sth.parent_lda.lda sth.sth;
+  oci_sess_set_attr sth.parent_lda.lda oci_attr_action "orabindexec_bulk: done";
   ()
     
 let orabindexec = orabindexec_bulk

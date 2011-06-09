@@ -11,6 +11,7 @@ let oci_attr_rows_fetched       = 197
 let oci_attr_prefetch_memory    = 13
 let oci_attr_param_count        = 18
 let oci_stmt_select             = 1
+let oci_attr_action             = 367
 
 (* various constants from ocidfn.h *)
 let oci_sqlt_odt                = 156 (* OCIDate object *)
