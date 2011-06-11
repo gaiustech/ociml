@@ -11,6 +11,8 @@ let oci_attr_rows_fetched       = 197
 let oci_attr_prefetch_memory    = 13
 let oci_attr_param_count        = 18
 let oci_stmt_select             = 1
+let oci_attr_action             = 367
+let oci_attr_driver_name        = 424 (* 11g only *)
 
 (* various constants from ocidfn.h *)
 let oci_sqlt_odt                = 156 (* OCIDate object *)
@@ -20,5 +22,9 @@ let oci_sqlt_flt                = 4   (* floating point number *)
 let oci_sqlt_num                = 2   (* ORANET numeric *)
 let oci_sqlt_dat                = 12  (* Oracle 7-byte date *)
 let oci_sqlt_chr                = 1   (* ORANET character string *)
+
+(* function to return all the keys in a hashtable *)
+let hash_keys h = Hashtbl.fold (fun k v acc -> k::acc) h []
+let hash_vals h = Hashtbl.fold (fun k v acc -> v::acc) h []
 
 (* end of file *)

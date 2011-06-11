@@ -1,5 +1,7 @@
 /* include file for OCI wrapper */
 
+#define OCIML_VERSION "ociml-0.2.4"
+
 #define CHECK_OCI(x, h) if (x != OCI_SUCCESS) { oci_non_success(h); }
 
 /* works on linux (!) */
@@ -18,6 +20,7 @@ typedef struct {
   OCIServer*  srv;
   OCISvcCtx*  svc;
   OCISession* ses;
+  OCIAuthInfo* auth;
 } oci_handles_t;
 
 /* struct for defining for rows fetched */
