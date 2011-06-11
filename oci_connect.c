@@ -58,12 +58,13 @@ value caml_oci_alloc_handles(value env) {
   CAMLparam1(env);
   OCIEnv* e = Oci_env_val(env);
 
-  oci_handles_t h = { NULL, NULL, NULL, NULL };
+  oci_handles_t h = { NULL, NULL, NULL, NULL, NULL };
 
   OCIHandleAlloc(e, (dvoid**)&h.err, OCI_HTYPE_ERROR,   0, 0);
   OCIHandleAlloc(e, (dvoid**)&h.srv, OCI_HTYPE_SERVER,  0, 0);
   OCIHandleAlloc(e, (dvoid**)&h.svc, OCI_HTYPE_SVCCTX,  0, 0);
   OCIHandleAlloc(e, (dvoid**)&h.ses, OCI_HTYPE_SESSION, 0, 0);
+  OCIHandleAlloc(e, (dvoid**)&h.auth, OCI_HTYPE_AUTHINFO, 0, 0);
 
   value v = caml_alloc_custom(&oci_custom_ops, sizeof(oci_handles_t), 0, 1);
   Oci_handles_val(v) = h;
@@ -110,10 +111,6 @@ value caml_oci_session_begin(value handles) {
 
   /* place the session within the service context */
   OCIAttrSet ((void*)h.svc, OCI_HTYPE_SVCCTX, (void*)h.ses, 0, OCI_ATTR_SESSION, h.err);
-
-  /* 1M prefetch buffer - this will be configurable at some point...*/
-  int buffer = 1024 * 1024;
-  x = OCIAttrSet(h.ses, OCI_HTYPE_SESSION, &buffer, sizeof(int), OCI_ATTR_PREFETCH_MEMORY, h.err);
 
   CAMLreturn(Val_unit);
 }
@@ -184,6 +181,19 @@ value caml_oci_terminate(value unit) {
 
   /* then the environment itself - moved here because we may wish to close a connection but retain the environment */
   oci_final_cleanup();
+  CAMLreturn(Val_unit);
+}
+
+/* interrupt a long-running query on a handle */
+value caml_oci_break(value handles) {
+  CAMLparam1(handles);
+  oci_handles_t h = Oci_handles_val(handles);
+#ifdef DEBUG
+  debug("caml_oci_break: entered");
+#endif
+  sword x = OCIBreak(h.svc, h.err);
+  CHECK_OCI(x, h);
+
   CAMLreturn(Val_unit);
 }
 

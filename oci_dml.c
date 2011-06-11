@@ -327,5 +327,4 @@ value caml_oci_bind_by_name(value handles, value stmt, value bindh, value posand
   CAMLreturn((value)ptr);
 }
 
- 
 /* end of file */

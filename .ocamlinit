@@ -17,29 +17,14 @@ let qq sth sqltext =
   end;
   r#print_report ();;
 
+let (maj, min) = oci_version () in
+  output_string Pervasives.stdout (Printf.sprintf "\tOCI*ML 0.3 built against OCI %d.%d\n\n" maj min);;
+
 (* set the default prefetch for all newly-created statement handles *)
 oraprefetch_default := 50;;
 
 (* thanks to Pascal Cuoq for this bit - sets the prompt *)
-let my_read_input prompt buffer len =
-  output_string Pervasives.stdout !oraprompt ; flush Pervasives.stdout;
-  let i = ref 0 in
-  try
-    while true do
-      if !i >= len then raise Exit;
-      let c = input_char Pervasives.stdin in
-      buffer.[!i] <- c;
-      incr i;
-      if c = '\n' then raise Exit;
-    done;
-    (!i, false)
-  with
-  | End_of_file ->
-    (!i, true)
-  | Exit ->
-    (!i, false);;
-
-Toploop.read_interactive_input := my_read_input ;;
+Toploop.read_interactive_input := let old = !Toploop.read_interactive_input in fun prompt buffer len -> old !oraprompt buffer len ;;
 
 (* end of file *)
 

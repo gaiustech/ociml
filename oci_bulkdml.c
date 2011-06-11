@@ -47,7 +47,9 @@ value caml_oci_write_nat_int_at_offset( value cht, value offset, value newint ) 
   int ni = Int_val(newint);
   
   memcpy(t.ptr + o, &ni, sizeof(int));
-
+#ifdef DEBUG
+  char dbuf[256]; snprintf(dbuf, 255, "caml_oci_write_nat_int_at_offset: wrote %d at %p + %d", ni, t.ptr, o); debug(dbuf);
+#endif
   CAMLreturn(Val_unit);
 }
 
@@ -68,9 +70,12 @@ value caml_oci_write_chr_at_offset(value cht, value offset, value newstring) {
   c_alloc_t t = C_alloc_val(cht);
   int o = Int_val(offset);
   char* s = String_val(newstring);
+#ifdef DEBUG
+  char dbuf[256]; snprintf(dbuf, 255, "caml_oci_write_chr_at_offset: writing '%s' at %p + %d", s, t.ptr, o); debug(dbuf); 
+#endif
+  memcpy(t.ptr + o, s, strlen(s) + 1);
 
-  memcpy(t.ptr + o, s, strlen(s));
-
+  //BREAKPOINT
   CAMLreturn(Val_unit);
 }
 
@@ -97,8 +102,16 @@ value caml_oci_bind_bulk_int(value handles, value stmt, value bindh, value cht, 
   c_alloc_t t = C_alloc_val(cht);
   int p = Int_val(pos);
 
+#ifdef DEBUG
+  char dbuf[256]; snprintf(dbuf, 255, "caml_oci_bind_bulk_int: binding t.ptr=%p at pos %d using bindhandle %p", t.ptr, p, bh); debug(dbuf);
+#endif
+
   sword x = OCIBindByPos(s, &bh, h.err, (ub4)p, (dvoid*)t.ptr, (sb4) sizeof(int), SQLT_INT, NULL, NULL, NULL, 0, NULL, OCI_DEFAULT);
   CHECK_OCI(x, h);
+
+#ifdef DEBUG
+  snprintf(dbuf, 255, "caml_oci_bind_bulk_int: after bind, handle is %p", bh); debug(dbuf);
+#endif
 
   CAMLreturn(Val_unit);
 }
@@ -160,6 +173,10 @@ value caml_oci_bulk_exec(value handles, value stmt, value num_rows, value auto_c
   int ac = Bool_val(auto_commit);
   sword x;
 
+#ifdef DEBUG
+  char dbuf[256]; snprintf(dbuf, 255, "caml_oci_bulk_exec: executing for %d rows", nr); debug(dbuf);
+#endif
+
   caml_release_runtime_system();
   if (!ac) { /* run query normally */
     x = OCIStmtExecute(h.svc, s, h.err, nr,  0, (OCISnapshot*) NULL, (OCISnapshot*) NULL, OCI_DEFAULT);
@@ -170,7 +187,8 @@ value caml_oci_bulk_exec(value handles, value stmt, value num_rows, value auto_c
 #endif
   }
   caml_acquire_runtime_system();
-  
+  CHECK_OCI(x, h);
+
   CAMLreturn(Val_unit);
 }
 

@@ -372,4 +372,52 @@ value caml_oci_get_string_from_context(value handles, value context, value index
   CAMLreturn(caml_copy_string(s));
 }
 
+/* get the position of a named bind - this is a bit of a mess but 
+   OCIStmtGetBindInfo() doesn't do what I want it to do*/
+value caml_oci_get_pos_from_name(value handles, value stmt, value bind_name) {
+  CAMLparam3(handles, stmt, bind_name);
+  oci_handles_t h = Oci_handles_val(handles);
+  OCIStmt* s = Oci_statement_val(stmt);
+  char* nm = String_val(bind_name);
+  int i = 0; int r = -1;
+
+  /* temporary variables - for once I am glad of stack alloc  */
+  sb4 found = 0;
+  text* bvns[255];
+  ub1 bvnls[255];
+  text* invs[255];
+  ub1 invls[255];
+  ub1 dupls[255];
+  OCIBind* bhnds[255];
+  OCIStmtGetBindInfo(s, h.err, (ub4)255, (ub4)1, &found, bvns, bvnls, invs, invls, dupls, bhnds);
+
+#ifdef DEBUG
+  char dbuf[256]; snprintf(dbuf, 255, "caml_oci_get_pos_from_name: looking for %s", nm); debug(dbuf);
+#endif
+
+  for (i = 0; i < found; i++) {
+#ifdef DEBUG
+    snprintf(dbuf, 255, "caml_oci_get_pos_from_name: found name %s at pos %d", (char*)bvns[i], i + 1); debug(dbuf);
+#endif
+    if ((strncmp(nm, (char*)bvns[i], bvnls[i])) == 0) {
+      r = i + 1;
+    }
+  }
+
+  CAMLreturn(Val_int(r));
+}
+
+/* callback for ref cursors - we get the statement as context, then point the buffer at it */
+sb4 cbf_ref_cursor(dvoid *ctxp, OCIBind *bindp, ub4 iter, ub4 index,
+		 dvoid **bufpp, ub4 **alenp, ub1 *piecep,
+		 dvoid **indpp, ub2 **rcodepp) {
+  return OCI_CONTINUE;
+}
+
+value caml_oci_bind_ref_cursor(value handles, value statement, value bindh, value pos, value refcursor) {
+  CAMLparam5(handles, statement, bindh, pos, refcursor);
+
+  CAMLreturn(Val_unit);
+}
+
 /* end of file */

@@ -9,11 +9,11 @@ open Ociml_utils
 (* Fairly thin wrapper around low-level OCI functions, used to implement higher-level OCI*ML library *)
 
 (* OCI handles that have to be tracked at the application level *)
-type oci_env (* global OCI environment *)
-type oci_handles (* C struct that bundles error, server, service context and session handles *)
-type oci_statement (* statement handle *)
+type oci_env        (* global OCI environment *)
+type oci_handles    (* C struct that bundles error, server, service context and session handles *)
+type oci_statement  (* statement handle *)
 type oci_bindhandle (* for binding in prepared statements *)
-type oci_ptr (* void* pointer so we can heap alloc for binding/defining *)
+type oci_ptr        (* void* pointer so we can heap alloc for binding/defining *)
 
 (* data structure for use within the library bundling all the handles associated 
    with a connection with a unique identifier and some useful statistics *)
@@ -28,7 +28,13 @@ type meta_handle = {connection_id:int;
 (* Variant for the basic data types - datetime crosses back and forth as epoch, 
    and Oracle's NUMBER datatype of course can be either integer or floating 
    point but it doesn't make sense to make the OCaml layer deal only in floats *)
-type col_value = Col_type of string * int * int * bool * bool|Varchar of string|Datetime of Unix.tm|Integer of int|Number of float|Null
+type col_value = Col_type of string * int * int * bool * bool
+		 |Varchar of string
+		 |Datetime of Unix.tm
+		 |Integer of int
+		 |Number of float
+		 |Null
+		 |RefCursor of oci_statement
 
 (* variant enabling binding by position or by name *)
 type bind_spec = Pos of int|Name of string
@@ -53,6 +59,7 @@ type meta_statement = {statement_id:int;
 		       bound_vals:(bind_spec, oci_bindhandle) Hashtbl.t;
 		       defined_vals:(bind_spec, define_spec) Hashtbl.t;
 		       oci_ptrs:(bind_spec, oci_ptr) Hashtbl.t;
+		       ref_cursors:(bind_spec, oci_statement) Hashtbl.t;
 		       parent_lda:meta_handle; 
 		       sth:oci_statement}
 
@@ -78,6 +85,7 @@ external oci_session_end: oci_handles -> unit = "caml_oci_session_end"
 external oci_server_detach: oci_handles -> unit = "caml_oci_server_detach"
 external oci_free_handles: oci_handles -> unit = "caml_oci_free_handles"
 external oci_terminate: oci_env -> unit = "caml_oci_terminate" (* final cleanup *)
+external oci_break: oci_handles -> unit = "caml_oci_break"
 
 (* transaction control commit/rollback - oci_dml.c *)
 external oci_commit: oci_handles -> unit = "caml_oci_commit"
@@ -105,12 +113,10 @@ external oci_fetch: oci_handles -> oci_statement -> unit = "caml_oci_fetch"
 external oci_set_prefetch: oci_handles -> oci_statement -> int -> unit = "caml_oci_set_prefetch"
 external oci_get_rows_affected: oci_handles -> oci_statement -> int = "caml_oci_get_rows_affected"
 
-
 (* type conversions - oci_types.c *)
 external oci_get_defined_string: oci_ptr -> string = "caml_oci_get_defined_string"
 external oci_get_date_as_double: oci_ptr -> float = "caml_oci_get_date_as_double"
 external oci_get_double: oci_handles -> oci_ptr -> float = "caml_oci_get_double"
-
 external oci_get_int: oci_handles -> oci_ptr -> int = "caml_oci_get_int"
 
 (* C heap memory functions - oci_common.c *)
@@ -125,14 +131,12 @@ external oci_write_flt_at_offset: oci_handles -> oci_ptr -> int -> float -> unit
 external oci_version: unit -> (int * int) = "caml_oci_version"
 
 (* AQ functions - oci_aq.c *)
-
 external oci_get_tdo_: oci_env -> oci_handles -> string -> oci_ptr = "caml_oci_get_tdo"
 external oci_string_assign: oci_env -> oci_handles -> string -> oci_ptr = "caml_oci_string_assign_text"
 external oci_aq_enqueue: oci_handles -> string -> oci_ptr -> oci_ptr -> oci_ptr -> unit = "caml_oci_aq_enqueue"
 external oci_int_from_number: oci_handles -> oci_ptr -> int -> int = "caml_oci_int_from_number"
 external oci_flt_from_number: oci_handles -> oci_ptr -> int -> float = "caml_oci_flt_from_number"
 external oci_string_from_string: oci_env -> oci_ptr -> string = "caml_oci_string_from_string"
-
 external oci_aq_dequeue: oci_env -> oci_handles -> string -> oci_ptr -> int -> oci_ptr = "caml_oci_aq_dequeue"
 
 (* Out variable functions - oci_out.c *)
@@ -143,6 +147,7 @@ external oci_bind_date_out_by_pos: oci_handles -> oci_statement -> oci_bindhandl
 external oci_get_date_from_context: oci_handles -> oci_ptr -> int -> float = "caml_oci_get_date_from_context"
 external oci_bind_string_out_by_pos: oci_handles -> oci_statement -> oci_bindhandle -> int -> oci_ptr = "caml_oci_bind_string_out_by_pos"
 external oci_get_string_from_context: oci_handles -> oci_ptr -> int -> string = "caml_oci_get_string_from_context"
+external oci_get_pos_from_name: oci_handles -> oci_statement -> string -> int = "caml_oci_get_pos_from_name"
 
 (* bulk dml functions - oci_bulkdml.c *)
 external oci_size_of_int: unit -> int = "caml_oci_get_size_of_int" (* native datatypes, not OCINumber *)
@@ -187,13 +192,26 @@ sig
   val oraprompt:    string
   val oraprefetch_default: int
   val oci_version:  unit -> (int * int)
+  val oraldalist:   unit -> meta_handle list
+  val orasthlist:   meta_handle -> meta_statement list
 end
 
 (* actual implementation *)
-(* 0.1 functionality - connections and DML *)
-
 let handle_seq = ref 0 (* unique ids for handles *)
 let statement_seq = ref 0 (* unique ids for statements *)
+
+let open_connections = Hashtbl.create 10 (* currently opened handles *)
+let oraldalist () = hash_vals open_connections
+
+let open_statements  = Hashtbl.create 20 (* currently opened statement handles *)
+let orasthlist lda = 
+  Hashtbl.fold (
+    fun (connection_id, _) v acc -> 
+      if (lda.connection_id == connection_id) then
+	v::acc
+      else
+	acc
+  ) open_statements []
 
 (* write a timestamped log message (log messages from the C code are tagged {C} 
    so anything else is from the ML. This can be set from the application.  *)
@@ -333,6 +351,7 @@ let orasql sth sqltext =
 
 let oraclose sth = 
   debug (sprintf "freeing statement id %d from connection id %d" sth.statement_id sth.parent_lda.connection_id);
+  Hashtbl.remove open_statements (sth.parent_lda.connection_id, sth.statement_id);
   Hashtbl.clear sth.bound_vals;
   oci_free_statement sth.sth
 
@@ -344,11 +363,14 @@ let oraopen lda =
   statement_seq := (!statement_seq + 1);
   let c = !statement_seq in
   debug (sprintf "allocated statement id %d on connection id %d" c lda.connection_id);
-  {statement_id=c; 
-   parses=0; binds=0; execs=0; sth_op_time=0.0; prefetch_rows = !oraprefetch_default; rows_affected=0; num_cols=0;
-   out_pending=false; out_counter = 0; sql_type=0; out_types=(Hashtbl.create 10);
-   bound_vals=(Hashtbl.create 10); defined_vals=(Hashtbl.create 10); oci_ptrs=(Hashtbl.create 10); 
-   parent_lda=lda; sth=s}
+  let new_statement = 
+    {statement_id=c; 
+     parses=0; binds=0; execs=0; sth_op_time=0.0; prefetch_rows = !oraprefetch_default; rows_affected=0; num_cols=0;
+     out_pending=false; out_counter = 0; sql_type=0; out_types=(Hashtbl.create 10);
+     bound_vals=(Hashtbl.create 10); defined_vals=(Hashtbl.create 10); oci_ptrs=(Hashtbl.create 10); 
+     ref_cursors=(Hashtbl.create 10); parent_lda=lda; sth=s} in
+  Hashtbl.add open_statements (lda.connection_id, c) new_statement;
+  new_statement
 
 (* connect to Oracle, connstr in format "user/pass@db" or "user/pass" like OraTcl *)
 let oralogon connstr = 
@@ -365,13 +387,17 @@ let oralogon connstr =
   let t2 = (gettimeofday () -. t1) in
   debug (sprintf "established connection %d as %s@%s in %fs" c username database t2);
   oraprompt := (sprintf "connected to %s@%s > " username database);
-  {connection_id=c; commits=0; rollbacks=0; auto_commit=false; deq_timeout=(-1); lda_op_time=t2; lda=h}
+  let conn = {connection_id=c; commits=0; rollbacks=0; auto_commit=false; deq_timeout=(-1); lda_op_time=t2; lda=h} in
+  Hashtbl.add open_connections c conn;
+  conn
 
 (* Disconnect from Oracle and release the memory. Global env is still allocated *)
 let oralogoff lda =
+  let c = lda.connection_id in
   oci_session_end lda.lda;
   oci_server_detach lda.lda;
   oci_free_handles lda.lda;
+  Hashtbl.remove open_connections c;
   oraprompt := "not connected > ";
   debug (sprintf "disconnected %d" lda.connection_id);
   ()
@@ -399,6 +425,7 @@ let rec orastring c =
     |Datetime x -> (sprintf "%02d-%s-%d %02d:%02d:%02d" x.tm_mday Log_message.months.(x.tm_mon) (x.tm_year+1900) x.tm_hour x.tm_min x.tm_sec)
     |Col_type (a,b,c,d,e) -> a
     |Null -> orastring !internal_oranullval
+    |RefCursor _ -> "#REF CURSOR#"
 	  
 (* describe a table - column names only (for now!) - using the implicit 
    describe method - also see implementation of oracols *)
@@ -410,7 +437,7 @@ let oradesc lda tabname =
 
 (* list of columns from last exec - this differs from oradesc in that it gives 
    all the columns in an actual query *)
-let oracols sth = (* Array.map (fun x -> Col_type x) *) (oci_get_column_types sth.parent_lda.lda sth.sth)
+let oracols sth = oci_get_column_types sth.parent_lda.lda sth.sth
 
 (* get the date back from the C layer as a double, then convert it to Unix.tm *)
 let oci_get_defined_date ptr =
@@ -449,9 +476,6 @@ let orafetch_select sth =
 	raise Not_found
       |_    -> raise (Oci_exception (e_code, e_desc)))
 
-
-let hash_keys h = Hashtbl.fold (fun k v acc -> k::acc) h []
-
 (* build a result set from the out variables. we know how many we have from the 
    number of keys in sth.oci_ptrs. We know how many rows we have from 
    sth.rows_affected. So we need to loop and pivot.
@@ -482,6 +506,9 @@ let orafetch_out sth =
 	       debug(sprintf "gotten epoch time back as %f" epoch);
 	       rs.(!i) <- Datetime (localtime epoch);
 	     end
+	   |RefCursor _ ->
+	     (* get the oci_statement from sth.ref_cursors and turn it into a meta_statement *)
+	     ()
 	   |_ -> ());
 	 sth.out_counter <- (sth.out_counter +1); i := (!i + 1);
        ) (hash_keys sth.out_types) 
@@ -663,12 +690,21 @@ let rec orabindout sth bs cv =
 		Hashtbl.replace sth.oci_ptrs bs (oci_bind_string_out_by_pos sth.parent_lda.lda sth.sth bh p);
 		Hashtbl.replace sth.out_types bs cv;
 	      end
+	    |RefCursor r ->
+	      begin
+		Hashtbl.replace sth.ref_cursors bs r;
+		Hashtbl.replace sth.out_types bs cv;
+		(* bind r itself *)
+		()
+	      end
 	    |_ -> debug("orabindout: this type not implemented yet")
 	end
       |Name n ->
-	begin
-	  debug("orabindout: by name not implemented yet")
-	end
+	let un = String.uppercase n in
+	let ucn = (match (String.sub un 0 1) with 
+	  |":" -> (String.sub un 1 ((String.length un) - 1))
+	  |_   -> un) in
+	orabindout sth (Pos (oci_get_pos_from_name sth.parent_lda.lda sth.sth ucn)) cv
   end;
   sth.binds <- (sth.binds + 1);
   sth.out_pending <- true;
@@ -725,7 +761,7 @@ let orabindexec_bulk sth cval =
       )
   ) first_row;
     
-  (* for each column in each row, get its oci_ptr1 from its bind spec, then 
+  (* for each column in each row, get its oci_ptr from its bind spec, then 
      write it at size*row_num bytes offset *)
   let row_count = ref 0 in
   List.iter (fun row -> 
@@ -744,15 +780,16 @@ let orabindexec_bulk sth cval =
 
   (* bind each pointer to the corresponding bindhandle *)
   Array.iteri (fun i x -> 
-    let bs = (Pos (i+1)) in
+    let bs = (Pos (i + 1)) in
     let bh = Hashtbl.find sth.bound_vals bs in
     let ptr = Hashtbl.find sth.oci_ptrs bs in
-    match x with
-      |Integer _  -> oci_bind_bulk_int sth.parent_lda.lda sth.sth bh ptr i
-      |Number _   -> oci_bind_bulk_flt sth.parent_lda.lda sth.sth bh ptr i
-      |Varchar _  -> oci_bind_bulk_chr sth.parent_lda.lda sth.sth bh ptr (!string_size, i)
-      |Datetime _ -> oci_bind_bulk_odt sth.parent_lda.lda sth.sth bh ptr (date_size,  i)
-      |_ -> ()
+    (match x with
+      |Integer _  -> oci_bind_bulk_int sth.parent_lda.lda sth.sth bh ptr (i + 1)
+      |Number _   -> oci_bind_bulk_flt sth.parent_lda.lda sth.sth bh ptr (i + 1)
+      |Varchar _  -> oci_bind_bulk_chr sth.parent_lda.lda sth.sth bh ptr (!string_size, (i + 1))
+      |Datetime _ -> oci_bind_bulk_odt sth.parent_lda.lda sth.sth bh ptr (date_size,  (i + 1))
+      |_ -> ());
+    debug(sprintf "orabindexec bulk: done bind at position %d" (i + 1))
   ) first_row;
 
   (* finally bulk execute *)
@@ -762,6 +799,9 @@ let orabindexec_bulk sth cval =
   ()
     
 let orabindexec = orabindexec_bulk
+  
+let orarefcursor () = RefCursor (oci_alloc_statement global_env)
 
 (* End of file *)
+
     

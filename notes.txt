@@ -1,32 +1,8 @@
-AQ implementation notes
+ref cursor implementation notes
 
-http://download.oracle.com/docs/cd/B10500_01/appdev.920/a96587/apexampl.htm
-
-0) call OCITypeByName to get the TDO
-
-1) find out how many items there are in a message and the size of a pointer. alloc this much in C and store the pointer in OCaml. Alloc this again +1 for the NULL message
-
-NOTE: OCINumbers are 22 bytes and stored inline (checked with OTT)!! So need to do a pass through the list to work out how much memory we need, then a second pass to actually assemble the message! Will need to track a HWM in the allocated block and write the next thing there. 
-
-
-2) for each item in the message (MUST BE IN ORDER!)
-   - do OCIStringAssignText or OCINumberAssign 
-   - have to get the pointer and store it at the offset in (1)
-   - also have to store null message
-
-3) Call OCIAQEnq with the handles, queue name, the TDO and a pointer to the struct from (1)
-   - user must oracommit
-
-
-
-interface is
-
-oraenqueue: lda -> string -> string -> col_value_array -> unit
-(lda, queue name, message type, message body)
-
-oradequeue: lda -> string -> string -> x array -> col_value array
-(lda, queue name, message type, array of funcs taking oci_ptr -> int ->col_value -> col_values)
-
-e.g. oci_get_queue_int, oci_get_queue_string
-
-ora
+- create statement handle oci_alloc_statement -> RefCursor of oci_statement
+- bind it in as SQL type SQLT_RSET - pass statement callback function as context, cbf returns it as bufpp! 
+- execute the query
+- convert it into a meta_statement
+- use it as normal
+  
