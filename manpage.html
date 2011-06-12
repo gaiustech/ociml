@@ -6,14 +6,16 @@
      <h2>NAME</h2>
      <dl><dd>OCI*ML - Oracle database access commands for OCaml. </dd></dl>
      <h2>INTRODUCTION</h2>
-     <dl><dd><p align=justify>OCI*ML is an extension to the OCaml language designed to provide access to an Oracle Database server. Its interface is closely based on OraTcl which provides the same functionality for the Tcl/Tk language, although they have no code in common, and not all OraTcl functionality is implemented (yet). The name follows the Oracle convention (e.g. SQL*Plus, Pro*C) as it is implemented using OCI, the Oracle Call Interface. Programmers using OCI*ML should be familiar with basic concepts of database programming, such as connections, cursors and result sets. This manpage documents version 0.2.2.</p>
+     <dl><dd><p align=justify>OCI*ML is an extension to the OCaml language designed to provide access to an Oracle Database server. Its interface is closely based on OraTcl which provides the same functionality for the Tcl/Tk language, although they have no code in common, and not all OraTcl functionality is implemented (yet). The name follows the Oracle convention (e.g. SQL*Plus, Pro*C) as it is implemented using OCI, the Oracle Call Interface. Programmers using OCI*ML should be familiar with basic concepts of database programming, such as connections, cursors and result sets. This manpage documents version 0.3.</p>
 	 
-	 <p align=justify>At present, 4 major datatypes are supported: 
+	 <p align=justify>At present, 4 major datatypes are supported, and two special types: 
 	   <ul>
 	     <li><code><b>Integer</b></code> corresponding to OCaml's <code>int</code>
 	     <li><code><b>Varchar</b></code> corresponding to OCaml's <code>string</code>
 	     <li><code><b>Datetime</b></code> corresponding to OCaml's <code>Unix.tm</code>
 	     <li><code><b>Number</b></code> corresponding to OCaml's <code>float</code>
+	     <li><code><b>Binary</b></code> for use with AQs of type <code>RAW</code>
+	     <li><code><b>RefCursor/Statement</b></code> for use with <code>orabindout</code> to access ref cursors returned from stored procedures.
 	 </ul></p>
 	 <p align=justify>To use OCI*ML, that module should first be opened:</p>
      <pre>
@@ -185,11 +187,20 @@
 	   - : Ociml.col_value array = [|Integer 99; Varchar "hello, world!"|]
 	   # oracommit;;
 	 </pre>
-	 The array passed to this command is a dummy with placeholders for the appropriate types so that OCI*ML can do the conversion from the underlying C struct.
+	 The array passed to this command is a dummy with placeholders for the appropriate types so that OCI*ML can do the conversion from the underlying C struct. Type <code>RAW</code> is also supported for AQ, using the <code>Binary</code> type, which is a <code>string</code>
      </p></dd>
 
      <dt><pre><b>oradeqtime</b> <i>logon-handle time</i></pre></dt>
      <dd><p align=justify>Sets the time in seconds to wait for a message dequeue. Exception <code>Not_found</code> will be raised if no message was received.</p></dd>
+
+     <dt><pre><b>oraldalist</b> <i>unit &rarr; logon-handle list</i></pre></dt>
+     <dd><p align=justify>Returns a list of all open logon handles (connections).</p></dd>
+
+     <dt><pre><b>orasthlist</b> <i>logon-handle &rarr; statement-handle list</i></pre></dt>
+     <dd><p align=justify>Returns a list of all open statement handles (cursors) associated with a logon handle. </p></dd>
+
+     <dt><pre><b>oci_version</b> &rarr; <i>(int, int)</i></pre></dt>
+     <dd><p align=justify>Returns a tuple of (major version, minor version) that this OCI*ML was built with.</p></dd>
 
      </dl></dd></dl>
 
@@ -222,7 +233,7 @@
      </dd></dl>
 
      <h2>AUTHOR</h2>
-     <dl><dd>Gaius Hammond <code>&lt;ociml@gaius.org.uk&gt;</code> May 28<sup>th</sup> 2011</dd></dl>
+     <dl><dd>Gaius Hammond <code>&lt;ociml@gaius.org.uk&gt;</code> June 12<sup>th</sup> 2011</dd></dl>
 
      <h2>ACKNOWLEDGEMENTS</h2>
       <dl><dd>With thanks to the <a href="http://oratcl.sourceforge.net/">OraTcl project</a></dd></dl>
