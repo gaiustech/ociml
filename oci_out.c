@@ -324,7 +324,7 @@ value caml_oci_bind_string_out_by_pos(value handles, value stmt, value bindh, va
   int p = Int_val(pos);
   sword x;
   
-  cb_context_t* cbct = (cb_context_t*)malloc(sizeof(cb_context_t));;
+  cb_context_t* cbct = (cb_context_t*)malloc(sizeof(cb_context_t));
   cbct->cht.ptr = (void*)malloc(sizeof(void*));
   cbct->err     = h.err;
 
@@ -407,16 +407,65 @@ value caml_oci_get_pos_from_name(value handles, value stmt, value bind_name) {
   CAMLreturn(Val_int(r));
 }
 
+/* a "/dev/null" buffer for dumping return codes I don't care about right now 
+   into, e.g. alen of a ref cursor is meaningless */
+ub4 dummy = 0;
+
 /* callback for ref cursors - we get the statement as context, then point the buffer at it */
 sb4 cbf_ref_cursor(dvoid *ctxp, OCIBind *bindp, ub4 iter, ub4 index,
 		 dvoid **bufpp, ub4 **alenp, ub1 *piecep,
 		 dvoid **indpp, ub2 **rcodepp) {
+
+  OCIStmt **stmtp = (OCIStmt **) ctxp;
+
+#ifdef DEBUG
+  char dbuf[256]; snprintf(dbuf, 255, "cbf_ref_cursor: *bufpp=%p", stmtp); debug(dbuf);
+#endif
+
+  *bufpp = stmtp;
+  *alenp = (void*)&dummy;
+  *piecep = OCI_ONE_PIECE;
+  *indpp = (void*)&dummy;
+  *rcodepp = (void*)&dummy;
+
+  return OCI_CONTINUE;
+}
+
+sb4 cbf_ref_cursor_in(dvoid *ctxp, OCIBind *bindp, ub4 iter, ub4 index,
+                      dvoid **bufpp, ub4 *alenpp, ub1 *piecep, dvoid **indpp) {
+  OCIStmt **stmtp = (OCIStmt **) ctxp;
+
+#ifdef DEBUG
+  char dbuf[256]; snprintf(dbuf, 255, "cbf_ref_cursor_in: *bufpp=%p", stmtp); debug(dbuf);
+#endif
+
+  *bufpp = stmtp;
+  *alenpp = dummy;
+  *indpp = (void*)&dummy;
+  *piecep = OCI_ONE_PIECE;
+
   return OCI_CONTINUE;
 }
 
 value caml_oci_bind_ref_cursor(value handles, value statement, value bindh, value pos, value refcursor) {
   CAMLparam5(handles, statement, bindh, pos, refcursor);
+  oci_handles_t h = Oci_handles_val(handles);
+  OCIStmt* s = Oci_statement_val(statement);
+  OCIBind* bh = Oci_bindhandle_val(bindh);
+  int p = Int_val(pos);
+  OCIStmt* rc = Oci_statement_val(refcursor);
+  sword x;
 
+#ifdef DEBUG
+  char dbuf[256]; snprintf(dbuf, 255, "caml_oci_bind_ref_cursor: rc=%p", rc); debug(dbuf);
+#endif
+
+  x = OCIBindByPos(s, &bh, h.err, (ub4)p, NULL, 0, SQLT_RSET, 0, 0, 0, 0, 0, OCI_DATA_AT_EXEC);
+  CHECK_OCI(x, h);
+
+  x = OCIBindDynamic(bh, h.err, (dvoid*)rc, cbf_ref_cursor_in, (dvoid*)rc, cbf_ref_cursor);
+  CHECK_OCI(x, h);
+  
   CAMLreturn(Val_unit);
 }
 

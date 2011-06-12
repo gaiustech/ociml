@@ -79,6 +79,7 @@ value caml_oci_stmt_execute(value handles, value stmt, value autocommit, value d
     /* this may take a while */
     caml_release_runtime_system();
     if (!ac) { /* run query normally */
+      //BREAKPOINT
       x = OCIStmtExecute(h.svc, sth, h.err, 1,  0, (CONST OCISnapshot*) NULL, (OCISnapshot*) NULL, OCI_DEFAULT);
     } else { /* run query and commit immediately */
       x = OCIStmtExecute(h.svc, sth, h.err, 1,  0, (CONST OCISnapshot*) NULL, (OCISnapshot*) NULL, OCI_COMMIT_ON_SUCCESS);
@@ -142,7 +143,9 @@ value caml_oci_stmt_alloc(value env) {
   if (x != OCI_SUCCESS) {
     raise_caml_exception(-1, "Cannot alloc handle in global env");
   }
-
+#ifdef DEBUG
+  char dbuf[256]; snprintf(dbuf, 255, "caml_oci_stmt_alloc: allocated statement at %p", sth); debug(dbuf);
+#endif
   value v = caml_alloc_custom(&oci_custom_ops, sizeof(OCIStmt*), 0, 1);
   Oci_statement_val(v) = sth;
   CAMLreturn(v);

@@ -38,9 +38,15 @@ value caml_oci_get_tdo(value env, value handles, value type_name) {
 #ifdef DEBUG
   char dbuf[256]; snprintf(dbuf, 255, "caml_oci_get_tdo: getting TDO for type '%s'", t); debug(dbuf);
 #endif
-
+  sword x;
   c_alloc_t tdo = {NULL};
-  sword x = OCITypeByName(e, h.err, h.svc, NULL, 0, (text*)t, strlen(t), (text*)0, 0, OCI_DURATION_SESSION, OCI_TYPEGET_ALL, (OCIType**)&tdo.ptr);
+
+  /* use the current schema for the type if object, else if RAW the use the AQ schema */
+  if (strncmp(t, "RAW", 3) == 0) {
+    x = OCITypeByName(e, h.err, h.svc, (text*)"SYS", strlen("SYS"), (text*)t, strlen(t), (text*)0, 0, OCI_DURATION_SESSION, OCI_TYPEGET_ALL, (OCIType**)&tdo.ptr);
+  } else {
+    x = OCITypeByName(e, h.err, h.svc, NULL, 0, (text*)t, strlen(t), (text*)0, 0, OCI_DURATION_SESSION, OCI_TYPEGET_ALL, (OCIType**)&tdo.ptr);
+  }
   CHECK_OCI(x, h);
 
   value v = caml_alloc_custom(&c_alloc_t_custom_ops, sizeof(c_alloc_t), 0, 1);
@@ -139,6 +145,36 @@ value caml_oci_aq_enqueue(value handles, value queue_name, value message_tdo, va
   CAMLreturn(Val_unit);
 }
 
+/* enqueue a message of type RAW - payload is passed from OCaml as a string */
+value caml_oci_aq_enqueue_raw(value env, value handles, value queue_name, value message_tdo, value message) {
+  CAMLparam5(env, handles, queue_name, message_tdo, message);
+  OCIEnv* e = Oci_env_val(env);
+  oci_handles_t h = Oci_handles_val(handles);
+  char* qn = String_val(queue_name);
+  c_alloc_t mt = C_alloc_val(message_tdo);
+  char* m = String_val(message);
+  sword x;
+#ifdef DEBUG
+  char dbuf[256]; snprintf(dbuf, 255, "caml_oci_aq_enqueue_raw: enqueueing message on '%s'",  qn); debug(dbuf);
+#endif
+  /* build a raw object in the global env */
+  OCIRaw* raw = (OCIRaw*)0;
+  x = OCIRawAssignBytes(e, h.err, (ub1*)m, (int)caml_string_length(message), &raw);
+  CHECK_OCI(x, h);
+#ifdef DEBUG
+  snprintf(dbuf, 255, "caml_oci_aq_enqueue_raw: raw storage allocated at %p for message size %d",  raw, (int)caml_string_length(message)); debug(dbuf);
+#endif  
+  /* enqueue the payload */
+  OCIInd ind = 0; 
+  dvoid *indptr = (dvoid *)&ind;
+  x = OCIAQEnq(h.svc, h.err, (text*)qn, 0, 0, mt.ptr, (dvoid**)&raw, (dvoid**)&indptr, 0, 0);
+  CHECK_OCI(x, h);
+#ifdef DEBUG
+  debug("caml_oci_aq_enqueue_raw: message enqueued");
+#endif
+  CAMLreturn(Val_unit);
+}
+
 /* dequeue a message */
 value caml_oci_aq_dequeue(value env, value handles, value queue_name, value message_tdo, value timeout) {
   CAMLparam5(env, handles, queue_name, message_tdo, timeout);
@@ -177,6 +213,52 @@ value caml_oci_aq_dequeue(value env, value handles, value queue_name, value mess
   value v = caml_alloc_custom(&c_alloc_t_custom_ops, sizeof(c_alloc_t), 0, 1);
   C_alloc_val(v) = msg_buf;
   CAMLreturn(v);
+}
+
+value caml_oci_aq_dequeue_raw(value env, value handles, value queue_name, value message_tdo, value timeout) {
+  CAMLparam5(env, handles, queue_name, message_tdo, timeout);
+  CAMLlocal1(dqm);
+  OCIEnv* e = Oci_env_val(env);
+  oci_handles_t h = Oci_handles_val(handles);
+  char* qn = String_val(queue_name);
+  c_alloc_t mt = C_alloc_val(message_tdo);
+  int to = Int_val(timeout);
+  sword x;
+  int pls = 0; // payload size
+
+  /* set the timeout */
+  OCIAQDeqOptions  *deqopt    = (OCIAQDeqOptions *)0;
+  x = OCIDescriptorAlloc(e, (dvoid **)&deqopt, OCI_DTYPE_AQDEQ_OPTIONS, 0, (dvoid **)0);
+  CHECK_OCI(x, h);
+  if (to > -1) {
+    OCIAttrSet(deqopt, OCI_DTYPE_AQDEQ_OPTIONS, (dvoid *)&to, 0, OCI_ATTR_WAIT, h.err);
+    CHECK_OCI(x, h);
+  }
+
+#ifdef DEBUG
+  char dbuf[256]; snprintf(dbuf, 255, "caml_oci_aq_dequeue_raw: dequeueing message from '%s'",  qn); debug(dbuf);
+#endif
+
+  OCIRaw* raw = (OCIRaw*)0;
+  OCIInd ind = 0; 
+  dvoid *indptr = (dvoid *)&ind;
+  
+  caml_release_runtime_system();
+  x = OCIAQDeq(h.svc, h.err, (text*)qn, deqopt, 0, mt.ptr, (dvoid**)&raw, (void**)&indptr, 0, 0);
+  caml_acquire_runtime_system();
+  CHECK_OCI(x, h);
+  OCIDescriptorFree((dvoid *)deqopt, OCI_DTYPE_AQDEQ_OPTIONS);
+
+  pls = OCIRawSize(e, raw);
+
+#ifdef DEBUG
+  snprintf(dbuf, 255, "caml_oci_aq_dequeue_raw: got payload of size %d",  pls); debug(dbuf);
+#endif
+
+  dqm = caml_alloc_string(pls);
+  memcpy (String_val(dqm), OCIRawPtr(e, raw), pls);
+
+  CAMLreturn(dqm);
 }
 
 /* end of file */
