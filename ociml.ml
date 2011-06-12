@@ -42,6 +42,7 @@ type col_value = Col_type of string * int * int * bool * bool
 		 |Null
 		 |RefCursor
 		 |Statement of meta_statement
+		 |Binary of string
 and
 (* same with statements, counters for parses, binds and execs, and the parent 
    connection (as it is allocated from the global OCI environment) *)
@@ -139,6 +140,8 @@ external oci_int_from_number: oci_handles -> oci_ptr -> int -> int = "caml_oci_i
 external oci_flt_from_number: oci_handles -> oci_ptr -> int -> float = "caml_oci_flt_from_number"
 external oci_string_from_string: oci_env -> oci_ptr -> string = "caml_oci_string_from_string"
 external oci_aq_dequeue: oci_env -> oci_handles -> string -> oci_ptr -> int -> oci_ptr = "caml_oci_aq_dequeue"
+external oci_aq_enqueue_raw: oci_env -> oci_handles -> string -> oci_ptr -> string -> unit = "caml_oci_aq_enqueue_raw"
+external oci_aq_dequeue_raw: oci_env -> oci_handles -> string -> oci_ptr -> int -> string = "caml_oci_aq_dequeue_raw"
 
 (* Out variable functions - oci_out.c *)
 external oci_bind_numeric_out_by_pos: oci_handles -> oci_statement -> oci_bindhandle -> int -> oci_ptr = "caml_oci_bind_numeric_out_by_pos"
@@ -434,6 +437,7 @@ let rec orastring c =
     |Null -> orastring !internal_oranullval
     |RefCursor -> "#REF CURSOR#"
     |Statement _ -> "#STATEMENT#"
+    |Binary _ -> "#BINARY DATA#"
 
 (* describe a table - column names only (for now!) - using the implicit 
    describe method - also see implementation of oracols *)
@@ -655,16 +659,27 @@ let oradequeue_obj lda queue_name message_type dummy_payload =
       |_ -> debug("dequeue for this type not supported yet");
     ) dummy_payload;
   rv
-    
+  
+let oraenqueue_raw lda queue_name message_type payload =
+  let mt = oci_get_tdo global_env lda.lda "RAW" in
+  match payload.(0) with
+    |Binary b -> oci_aq_enqueue_raw global_env lda.lda queue_name mt b
+    |_ -> raise (Invalid_argument "Cannot enqueue this message as RAW")
+  
 let oraenqueue lda queue_name message_type payload =
   match message_type with
-    |"RAW" -> debug("Raw AQ not implemented yet")
+    |"RAW" -> oraenqueue_raw lda queue_name message_type payload
     |_     -> oraenqueue_obj lda queue_name message_type payload
 
+let oradequeue_raw lda queue_name = 
+  let mt = oci_get_tdo global_env lda.lda "RAW" in
+  [|Binary (oci_aq_dequeue_raw global_env lda.lda queue_name mt lda.deq_timeout)|]
+
 let oradequeue lda queue_name message_type payload =
+  debug(sprintf "oradequeue: queue_name='%s' message_type='%s'" queue_name message_type);
   try
     match message_type with
-      |"RAW" -> debug("Raw AQ not implemented yet"); [|Null|];
+      |"RAW" -> oradequeue_raw lda queue_name
       |_     -> oradequeue_obj lda queue_name message_type payload
   with
       Oci_exception (e_code, e_desc) ->
