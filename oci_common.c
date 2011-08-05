@@ -14,9 +14,9 @@
 
 /* write a timestamped log message {C} for C code */
 void debug(char* msg) {
-  char* datebuf = (char*)malloc(32);
+  char datebuf[32];
   time_t t = time(NULL);
-  strftime(datebuf, 31, "%a %b %e %T %Y", (gmtime(&t)));
+  strftime((char*)&datebuf, 31, "%a %b %e %T %Y", (gmtime(&t)));
   fprintf(stderr, "%s: %s {C}\n", datebuf, msg);
   fflush(stderr);
 }
