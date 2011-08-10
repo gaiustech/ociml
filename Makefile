@@ -39,7 +39,7 @@ ociml.cma:	$(MLOBJS) $(COBJS)
 	ocamlmklib -verbose -o ociml -L$(ORACLE_HOME)/lib -lclntsh -cclib -lclntsh unix.cma $(MLOBJS) $(COBJS)
 
 ociml.cmxa:	$(MLOPTOBJS) $(COBJS)
-	ocamlmklib -verbose -o ociml -L$(ORACLE_HOME)/lib -lclntsh -cclib -lclntsh unix.cma $(MLOPTOBJS) $(COBJS)
+	ocamlmklib -verbose -o ociml -L$(ORACLE_HOME)/lib -lclntsh -cclib -lclntsh $(MLOPTOBJS) $(COBJS)
 
 ociml.cmo:	ociml.ml
 	ocamlc -c -g  ociml.ml
