@@ -10,7 +10,7 @@ OCAML_VERSION_MAJOR = `ocamlopt -version | cut -f1 -d.`
 OCAML_VERSION_MINOR = `ocamlopt -version | cut -f2 -d.`
 OCAML_VERSION_POINT = `ocamlopt -version | cut -f3 -d.`
 
-all:	$(MLOBJS) $(COBJS) ociml.cma ociml.cmxa
+all:	ociml.cma ociml.cmxa
 
 sample:	all examples/ociml_sample.ml
 	ocamlfind ocamlc -g -custom -o examples/ociml_sample $(CCLIBS) unix.cma $(MLOBJS) examples/ociml_sample.ml $(COBJS)
