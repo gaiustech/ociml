@@ -518,7 +518,7 @@ let orafetch_out sth =
 	       debug(sprintf "gotten epoch time back as %f" epoch);
 	       rs.(!i) <- Datetime (localtime epoch);
 	     end
-	   |RefCursor _ ->
+	   |RefCursor ->
 	     (* get the oci_statement from sth.ref_cursors and turn it into a meta_statement *)
 	     let s = (make_new_statement 99 sth.parent_lda (Hashtbl.find sth.ref_cursors bs)) in
 	     define_select_cols s;

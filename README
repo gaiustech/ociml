@@ -11,7 +11,8 @@ continuing.
 Developed on OCaml 3.11 and 12 and Oracle 10g and 11g on Debian Squeeze with 
 GCC 4. Requires an Oracle client installation to build and at least instantclient
 to operate. Pure C so no issues with incompatible C++ libraries. Binaries built
-with this library have also been run on RHEL 5 with no issues.
+with this library have also been run on RHEL 5 with no issues, and compiled with
+OCaml 4 beta.
 
 Instructions:
 
@@ -30,15 +31,12 @@ To use interactively:
 $ ./ocimlsh 
         Objective Caml version 3.12.0
 
-# let lda = oralogon "gaius/abc123";;
+	OCI*ML 0.3 built against OCI 10.2
+
+not connected >  let lda = oralogon "gaius/abc123";;
 val lda : Ociml.meta_handle =
   {connection_id = 1; commits = 0; rollbacks = 0;
    lda_op_time = 1.00399088859558105; lda = <abstr>}
-
-The "make install" target does not currently work correctly so ociml.cma and
-ociml.cmi will need to be in the same directory, or include the directory, e.g.
-
-$ ./Projects/ociml/ocimlsh -I ./Projects/ociml/
 
 Also try the included .ocamlinit, which sets up ocimlsh conveniently. It is 
 assumed that you are basically familiar with Oracle and are looking for a way 
@@ -72,9 +70,6 @@ TODO (in no particular order):
 	- LOBs
 	- BFILEs
         - More AQ features
-	- session pooling (11g only)
-	- connection to a specific edition (11g only)
-	- "make install" target that plays nicely with ocamlfind
 
 Inspired by Oracaml[3]
 

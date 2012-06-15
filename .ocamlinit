@@ -3,6 +3,8 @@
 open Ociml
 open Report
 
+#directory "+compiler-libs";;
+
 (* quick query: qq sth "select * from mytable" *)
 let qq sth sqltext =
   orasql sth sqltext;
