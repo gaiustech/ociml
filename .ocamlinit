@@ -1,8 +1,10 @@
 (* .ocimlinit file for ocimlsh component of OCI*ML *)
 
+open Unix
 open Ociml
 open Report
 
+(* for OCaml 4 *)
 #directory "+compiler-libs";;
 
 (* quick query: qq sth "select * from mytable" *)
@@ -18,6 +20,53 @@ let qq sth sqltext =
     with |Not_found -> ();
   end;
   r#print_report ();;
+
+(* helper functions *)
+let rec longest_string_in_list xs rt =
+  match xs with
+    |[] -> rt
+    |(x::xs) -> match ((String.length x) > rt) with
+	|true -> longest_string_in_list xs (String.length x)
+	|false -> longest_string_in_list xs rt;;
+
+let get_int_from_int x = match x with |Integer x -> x|_ -> 0;;
+
+let rec highest_int_in_list xs rt =
+  match xs with
+    |[] -> rt
+    |(x::xs) -> match (x > rt) with
+	|true -> highest_int_in_list xs x
+	|false -> highest_int_in_list xs rt;;
+
+let get_terminal_size () =
+  let in_channel = Unix.open_process_in "stty size" in
+  try
+    begin
+      try
+        Scanf.fscanf in_channel "%d %d"
+          (fun rows cols ->
+             ignore (Unix.close_process_in in_channel);
+             (rows, cols))
+      with End_of_file ->
+        ignore (Unix.close_process_in in_channel);
+        (0, 0)
+    end
+  with e ->
+    ignore (Unix.close_process_in in_channel);
+    raise e
+
+(* quick histogram, assumes a 2 column query, the second must be numeric *)
+let qh sth sqltext =
+    orasql sth sqltext;
+    let r = new report (Array.map orastring (oracols sth)) in
+    let rs = orafetchall sth in
+    let max_col1 = (longest_string_in_list (List.map (fun x -> orastring x.(0)) rs) 0) in
+    let max_col2 = (highest_int_in_list (List.map (fun x -> get_int_from_int x.(1)) rs) 0) in
+    let (_, termcols) = get_terminal_size () in
+    let scale = (float_of_int (termcols - max_col1 - 2)) /. (float_of_int max_col2) in
+    let getBars s x = String.make (int_of_float (s *. (float_of_int x))) '#' in
+    List.iter (fun x -> r#add_row [|(orastring x.(0)); (getBars scale (get_int_from_int x.(1))) |] ) rs;
+      r#print_report ();;
 
 let (maj, min) = oci_version () in
   output_string Pervasives.stdout (Printf.sprintf "\tOCI*ML 0.3 built against OCI %d.%d\n\n" maj min);;
