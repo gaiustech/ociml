@@ -5,10 +5,10 @@ A simple Oracle API for OCaml. See blog for latest: http://gaiustech.wordpress.c
 Please read the file LICENSE and ensure that you are happy with it before 
 continuing. 
 
-Developed on OCaml 3.11 and 12 and Oracle 10g and 11g on Debian Squeeze with 
-GCC 4. Requires an Oracle client installation to build and at least instantclient
-to operate. Pure C so no issues with incompatible C++ libraries. Binaries built
-with this library have also been run on RHEL 5 with no issues, and compiled with
+Developed on OCaml 3.12 and Oracle 11g on Debian Wheezy with GCC 4. Requires an 
+Oracle client installation to build and at least instantclient to operate. 
+Pure C so no issues with incompatible C++ libraries. Binaries built with 
+this library have also been run on RHEL 5 with no issues, and compiled with 
 OCaml 4 beta.
 
 Instructions:
@@ -25,10 +25,11 @@ As root (but see below):
 
 To use interactively:
 
-$ ./ocimlsh 
-        Objective Caml version 3.12.0
+$ alias o='if [ -f ./ocimlsh ]; then rlwrap ./ocimlsh; else rlwrap ocaml; fi'
+$ o 
+        Objective Caml version 3.12.1
 
-	OCI*ML 0.3 built against OCI 10.2
+	OCI*ML 0.3 built against OCI 11.2
 
 not connected >  let lda = oralogon "gaius/abc123";;
 val lda : Ociml.meta_handle =

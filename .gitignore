@@ -1,0 +1,8 @@
+# Compiled source
+*.cm*
+*.o
+*.a
+*.so
+ocimlsh
+examples/*
+*.annot
