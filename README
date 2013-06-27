@@ -2,9 +2,6 @@
 
 A simple Oracle API for OCaml. See blog for latest: http://gaiustech.wordpress.com 
 
-*** If you are reading this on GitHub then the most-usable version will be in the 
-    .tgz so just download that to get started. Then read this file in there.  ***
-
 Please read the file LICENSE and ensure that you are happy with it before 
 continuing. 
 
