@@ -816,7 +816,14 @@ let orabindexec_bulk sth cval =
       |Varchar _  -> oci_bind_bulk_chr sth.parent_lda.lda sth.sth bh ptr (!string_size, (i + 1))
       |Datetime _ -> oci_bind_bulk_odt sth.parent_lda.lda sth.sth bh ptr (date_size,  (i + 1))
       |_ -> ());
-    debug(sprintf "orabindexec_bulk: done bind at position %d" (i + 1))
+    debug(sprintf "orabindexec_bulk: done bind at position %d type %s" (i + 1) (match x with 
+    |Integer _ -> "Integer"
+    |Number _ -> "Number"
+    |Varchar _ -> "Varchar"
+    |Datetime _ -> "Datetime"
+    |_ -> "Unknown"
+    )
+    )
   ) first_row;
 
   (* finally bulk execute *)

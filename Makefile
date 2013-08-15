@@ -15,8 +15,14 @@ all:	ociml.cma ociml.cmxa
 sample:	all examples/ociml_sample.ml
 	ocamlfind ocamlc -g -custom -o examples/ociml_sample $(CCLIBS) unix.cma $(MLOBJS) examples/ociml_sample.ml $(COBJS)
 
+test: all tests/ociml_test.ml
+	ocamlfind ocamlc tests/testdata.mli -o tests/testdata.cmi		
+	ocamlfind ocamlc -c unix.cma -w -8-10-26 -I `pwd`/tests tests/testdata.ml -o tests/testdata.cmo
+	ocamlfind ocamlc -g -custom  -w -8-10-26 -o tests/ociml_test $(CCLIBS) unix.cma -I `pwd`/tests $(MLOBJS) tests/testdata.cmo tests/ociml_test.ml $(COBJS)
+	tests/ociml_test
+
 clean:
-	rm -f ociml examples/ociml_sample *.cm* *.o  *~ *.so *.a ocimlsh sqlnet.log *.annot
+	rm -f ociml examples/ociml_sample tests/ociml_test *.cm* *.o  *~ *.so *.a ocimlsh sqlnet.log *.annot
 
 install:
 	ocamlfind install ociml META ociml.a ociml.cma ociml.cmxa ociml.cmi  dllociml.so libociml.a
@@ -29,7 +35,7 @@ doc: ociml.ml
 	rm -f doc/*.html
 	ocamldoc -html -d doc  ociml.ml
 
-shell: sample
+shell: all
 	ocamlmktop -g -custom -o ocimlsh $(CCLIBS) unix.cma $(MLOBJS) $(COBJS)
 
 dist:

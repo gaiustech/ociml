@@ -5,6 +5,7 @@
    http://oratcl.sourceforge.net/manpage.html 
 
    13-MAY-2011 Gaius Initial public version
+   14-AUG-2013 Gaius This is deprecated in favour of ociml_test
 *)
 
 open Ociml

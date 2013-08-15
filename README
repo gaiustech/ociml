@@ -13,11 +13,12 @@ OCaml 4 beta.
 
 Instructions:
 
-$ make clean && make shell
+First setup the test schema by running tests/ociml_test.sql as a DBA, then
 
-Install examples/ociml_test.sql in Oracle, then read and run the sample code:
+$ make clean && make test && make shell
 
-$ ./ociml_sample username/password@database
+Sample code is provided in the form of the tests in tests/ociml_test.ml. Quite
+a lot of time in the tests is generating large random datasets.
 
 As root (but see below):
 
@@ -66,8 +67,7 @@ because ORACLE_HOME isn't set (correctly).
 
 TODO (in no particular order):
 	- LOBs
-	- BFILEs
-        - More AQ features
+	- DCN
 
 Inspired by Oracaml[3]
 

@@ -58,7 +58,7 @@ value caml_oci_get_column_types(value handles, value stmt) {
     coltuple = caml_alloc_tuple(5);
     Store_field(coltuple, 0, caml_copy_string((char*)col_name2));  /* name */
     Store_field(coltuple, 1, Val_long(col_type));                 /* type */    
-    Store_field(coltuple, 2, Val_long(col_size));                 /* size (for VARCHAR) */
+    Store_field(coltuple, 2, Val_long(col_size + 1));                 /* size (for VARCHAR) */ /* +1 fixes problem with SELECT 1 FROM DUAL actually returned as 1. */
 
     if (col_scale == 0 && col_type == 2 ) {                       /* is_integer */
       Store_field(coltuple, 3, Val_bool(1));               
@@ -100,7 +100,7 @@ value caml_oci_define(value handles, value stmt, value pos, value dtype, value s
 
   int s = Int_val(size);
 
-  oci_define_t defs = { NULL, NULL, 0 };
+  oci_define_t defs = { NULL, NULL, 0, 0.0, 0 };
   defs.dtype = dtype;
 
   sword x;
@@ -112,20 +112,17 @@ value caml_oci_define(value handles, value stmt, value pos, value dtype, value s
   switch (t) {
   case SQLT_CHR:
     defs.ptr = (void*)malloc(s+1);
-    x = OCIDefineByPos(sth, &defs.defh, h.err, p + 1, defs.ptr, s+1, SQLT_STR, 0, 0, 0, OCI_DEFAULT);
+    memset(defs.ptr, 0, s+1); /* fixes problem with odd behavior of SELECT NULL FROM DUAL */
+    x = OCIDefineByPos(sth, &defs.defh, h.err, p + 1, defs.ptr, s+1, SQLT_STR, &defs.ind, 0, 0, OCI_DEFAULT);
     break;
   case SQLT_DAT: /* see if we can get this as an OCIDate... */
     defs.ptr = (void*)malloc(sizeof(OCIDate));
-    x = OCIDefineByPos(sth, &defs.defh, h.err, p + 1, defs.ptr, s+1, SQLT_ODT, 0, 0, 0, OCI_DEFAULT);
-  break;
+    x = OCIDefineByPos(sth, &defs.defh, h.err, p + 1, defs.ptr, s+1, SQLT_ODT, &defs.ind, 0, 0, OCI_DEFAULT);
+    break;
   case SQLT_NUM:
     defs.ptr = (void*)malloc(sizeof(OCINumber));
-    /*if (ii) {
-      x = OCIDefineByPos(sth, &defs.defh, h.err, p + 1, defs.ptr, s, SQLT_INT, 0, 0, 0, OCI_DEFAULT);
-      } else {*/
-      x = OCIDefineByPos(sth, &defs.defh, h.err, p + 1, defs.ptr, s, SQLT_VNU, 0, 0, 0, OCI_DEFAULT);
-      /*}*/
-    break;
+      x = OCIDefineByPos(sth, &defs.defh, h.err, p + 1, defs.ptr, s, SQLT_VNU, &defs.ind, 0, 0, OCI_DEFAULT);
+      break;
   default:
     debug("caml_oci_define: unknown datatype to define");
   }

@@ -1,6 +1,6 @@
 /* include file for OCI wrapper */
 
-#define OCIML_VERSION "ociml-0.2.4"
+#define OCIML_VERSION "ociml-0.3"
 
 #define CHECK_OCI(x, h) if (x != OCI_SUCCESS) { oci_non_success(h); }
 
@@ -29,6 +29,7 @@ typedef struct {
   void* ptr; /* the data itself */
   int dtype;
   double dbl;
+  int ind;
 } oci_define_t;
 
 typedef struct {

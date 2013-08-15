@@ -52,8 +52,12 @@ double ocidate_to_epoch(OCIDate* ocidate) {
 value caml_oci_get_defined_string(value defs) {
   CAMLparam1(defs);
   oci_define_t d = Oci_defhandle_val(defs);
+  
+#ifdef DEBUG
+  char dbuf[256]; snprintf(dbuf, 255, "caml_oci_get_defined_string: string=%s indicator=%d", (char*)d.ptr, d.ind); debug(dbuf);
+#endif
 
-    CAMLreturn(caml_copy_string(d.ptr));
+  CAMLreturn(caml_copy_string(d.ptr));
 }
 
 /* dereference and return a datetime as epoch */
