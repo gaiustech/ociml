@@ -98,26 +98,25 @@ let test_prefetch_performance batchsize () =
 
 let functional_tests = [
   (test_connect_to_db, "oralogon", "Connection to database");
-  (test_simple_select, "oraopen, orasql, orafetch", "Test SELECT * FROM DUAL;");
+  (test_simple_select, "oraopen, orasql, orafetch", "SELECT * FROM DUAL;");
   (test_setup_test_table, "oradesc", "Setup test table");
   (test_transactions, "oracommit, oraroll", "Test tranactions");
   (test_drop_test_table, "", "Drop test table");
 ]
 
-let performance_tests = [ (*
-  ((test_bulk_insert_performance 10000 1), "Testing bulk insert performance: 10000 rows, 1 row per batch");
-  ((test_bulk_insert_performance 10000 10), "Testing bulk insert performance: 10000 rows, 10 rows per batch");
-  ((test_bulk_insert_performance 10000 100), "Testing bulk insert performance: 10000 rows, 100 rows per batch");
-  ((test_bulk_insert_performance 10000 1000), "Testing bulk insert performance: 10000 rows, 1000 rows per batch");
-  ((test_bulk_insert_performance 10000 10000), "Testing bulk insert performance: 10000 rows, 10000 rows per batch");
-  ((test_prefetch_performance 1), "Testing prefetch 1 row per fetch");
+let performance_tests = [ 
+  ((test_bulk_insert_performance 10000 1), "Bulk insert performance: 10000 rows, 1 row per batch");
+  ((test_bulk_insert_performance 10000 10), "Bulk insert performance: 10000 rows, 10 rows per batch");
+  ((test_bulk_insert_performance 10000 100), "Bulk insert performance: 10000 rows, 100 rows per batch");
+  ((test_bulk_insert_performance 10000 1000), "Bulk insert performance: 10000 rows, 1000 rows per batch");
+  ((test_bulk_insert_performance 10000 10000), "Bulk insert performance: 10000 rows, 10000 rows per batch");
+  (* ((test_prefetch_performance 1), "Testing prefetch 1 row per fetch");
   ((test_prefetch_performance 10), "Testing prefetch 10 rows per fetch");
 			  *)]
 
 let () =
-  Random.self_init ();
   print_endline "*** Running functional tests ***";
-  oradebug true;
+  oradebug false;
   let r = new report [|"Test"; "Uses"; "Result"|] in
   let run_test (f, uses, msg)  =
     r#add_row [|msg; uses; (

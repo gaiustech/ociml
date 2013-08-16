@@ -1,0 +1,8 @@
+# Compiled source
+*.cm*
+*.o
+*.a
+*.so
+ociml_test
+*~
+*.annot

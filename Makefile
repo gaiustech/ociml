@@ -1,7 +1,7 @@
 # Makefile for OCI*ML project
 
 CCFLAGS	= -ccopt -I/usr/lib/ocaml -ccopt -I$(ORACLE_HOME)/rdbms/public -ccopt -Wall
-COBJS	= oci_common.o oci_connect.o oci_types.o oci_dml.o oci_select.o oci_aq.o oci_blob.o oci_out.o oci_bulkdml.o
+COBJS	= oci_common.o oci_connect.o oci_types.o oci_dml.o oci_select.o oci_aq.o oci_blob.o oci_out.o oci_bulkdml.o oci_dcn.o
 MLOBJS	= ociml_utils.cmo log_message.cmo report.cmo ociml.cmo
 MLOPTOBJS	= ociml_utils.cmx log_message.cmx report.cmx ociml.cmx
 CCLIBS  = -cclib -L$(ORACLE_HOME)/lib -cclib -lclntsh
@@ -15,14 +15,12 @@ all:	ociml.cma ociml.cmxa
 sample:	all examples/ociml_sample.ml
 	ocamlfind ocamlc -g -custom -o examples/ociml_sample $(CCLIBS) unix.cma $(MLOBJS) examples/ociml_sample.ml $(COBJS)
 
-test: all tests/ociml_test.ml
-	ocamlfind ocamlc tests/testdata.mli -o tests/testdata.cmi		
-	ocamlfind ocamlc -c unix.cma -w -8-10-26 -I `pwd`/tests tests/testdata.ml -o tests/testdata.cmo
-	ocamlfind ocamlc -g -custom  -w -8-10-26 -o tests/ociml_test $(CCLIBS) unix.cma -I `pwd`/tests $(MLOBJS) tests/testdata.cmo tests/ociml_test.ml $(COBJS)
-	tests/ociml_test
+test: all
+	cd tests; make test
 
 clean:
 	rm -f ociml examples/ociml_sample tests/ociml_test *.cm* *.o  *~ *.so *.a ocimlsh sqlnet.log *.annot
+	cd tests; make clean
 
 install:
 	ocamlfind install ociml META ociml.a ociml.cma ociml.cmxa ociml.cmi  dllociml.so libociml.a
