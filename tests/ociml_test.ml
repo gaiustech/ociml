@@ -45,7 +45,11 @@ let test_setup_test_table () =
     let sth = oraopen lda in
     orasql sth (dt_list_to_table_sql "tab1" test_dt_list);
     (* now describe it and see if it's as we expect *)
-    Pass
+    let t = oradesc lda "tab1" in
+    let dt_list2 = Array.map (fun (col_name, col_type, col_size, is_nullable) -> col_type) t in
+    match (test_dt_list = (Array.to_list dt_list2)) with
+    |true -> Pass
+    |false -> Fail "DB does not match spec!"
   with
     Oci_exception (e_code, e_desc) -> Fail e_desc
 

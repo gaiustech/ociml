@@ -53,12 +53,12 @@ value caml_oci_get_column_types(value handles, value stmt) {
     OCIAttrGet((dvoid*)ph, OCI_DTYPE_PARAM, (dvoid**)&col_null, (ub4*)0, OCI_ATTR_IS_NULL, h.err);
 
 #ifdef DEBUG
-    char dbuf[256]; snprintf(dbuf, 255, "caml_oci_get_column_names i=%d len=%d name=%s type=%d size=%d scale=%d", i, col_name_len, (char*)col_name, col_type, col_size, col_scale); debug(dbuf);
+    char dbuf[256]; snprintf(dbuf, 255, "caml_oci_get_column_types i=%d len=%d name=%s type=%d size=%d scale=%d null=%d", i, col_name_len, (char*)col_name2, col_type, col_size, col_scale, col_null); debug(dbuf);
 #endif
     coltuple = caml_alloc_tuple(5);
     Store_field(coltuple, 0, caml_copy_string((char*)col_name2));  /* name */
     Store_field(coltuple, 1, Val_long(col_type));                 /* type */    
-    Store_field(coltuple, 2, Val_long(col_size + 1));                 /* size (for VARCHAR) */ /* +1 fixes problem with SELECT 1 FROM DUAL actually returned as 1. */
+    Store_field(coltuple, 2, Val_long(col_size + 1));                 /* size (for VARCHAR) */ /* +1 fixes problem with SELECT 1 FROM DUAL actually returned as 1. - we undo this cosmetically in oradesc */
 
     if (col_scale == 0 && col_type == 2 ) {                       /* is_integer */
       Store_field(coltuple, 3, Val_bool(1));               

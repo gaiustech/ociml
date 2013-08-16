@@ -29,7 +29,7 @@ let rec longest_string_in_list xs rt =
 	|true -> longest_string_in_list xs (String.length x)
 	|false -> longest_string_in_list xs rt;;
 
-let get_int_from_int x = match x with |Integer x -> x|_ -> 0;;
+let get_int_from_int x = match x with |Integer x -> x|Number x -> int_of_float x|_ -> 0;;
 
 let rec highest_int_in_list xs rt =
   match xs with
@@ -47,13 +47,16 @@ let get_terminal_size () =
           (fun rows cols ->
              ignore (Unix.close_process_in in_channel);
              (rows, cols))
-      with End_of_file ->
-        ignore (Unix.close_process_in in_channel);
+      with 
+      |End_of_file -> ignore (Unix.close_process_in in_channel);
         (0, 0)
+      |Unix_error _ -> (24, 80)
     end
   with e ->
     ignore (Unix.close_process_in in_channel);
     raise e
+
+let termsize = get_terminal_size ();; (* get_terminal_size () will fail after a connection to Oracle has been made *)
 
 (* quick histogram, assumes a 2 column query, the second must be numeric *)
 let qh sth sqltext =
@@ -62,7 +65,7 @@ let qh sth sqltext =
     let rs = orafetchall sth in
     let max_col1 = (longest_string_in_list (List.map (fun x -> orastring x.(0)) rs) 0) in
     let max_col2 = (highest_int_in_list (List.map (fun x -> get_int_from_int x.(1)) rs) 0) in
-    let (_, termcols) = get_terminal_size () in
+    let (_, termcols) = termsize in
     let scale = (float_of_int (termcols - max_col1 - 2)) /. (float_of_int max_col2) in
     let getBars s x = String.make (int_of_float (s *. (float_of_int x))) '#' in
     List.iter (fun x -> r#add_row [|(orastring x.(0)); (getBars scale (get_int_from_int x.(1))) |] ) rs;
@@ -74,8 +77,33 @@ let (maj, min) = oci_version () in
 (* set the default prefetch for all newly-created statement handles *)
 oraprefetch_default := 50;;
 
+(* for Python users :-) *)
+let connect = oralogon;;
+let cursor = oraopen;;
+
+(* a bit more like SQL*Plus's version *)
+let describe lda tabname =
+  let r = new report [|"Name"; "Null?"; "Type"|] in
+  let _ = Array.iter (fun (n, t, s, u) 
+  -> r#add_row [|n; 
+		 (match u with 
+		 |Not_nullable -> "Not Null"
+		 |_ -> "");
+		 (Printf.sprintf "%s" 
+		    (match t with
+		    |Integer _ -> "Integer"
+		    |Number _ -> "Number"
+		    |Varchar _ -> (Printf.sprintf "%s (%d)" "Varchar" s)
+		    |Datetime _ -> "Datetime"
+		    |_ -> "Unknown"));  	 
+	       |]
+  ) (oradesc lda tabname) in
+  r#print_report ();;
+
 (* thanks to Pascal Cuoq for this bit - sets the prompt *)
 Toploop.read_interactive_input := let old = !Toploop.read_interactive_input in fun prompt buffer len -> old !oraprompt buffer len ;;
+
+
 
 (* end of file *)
 

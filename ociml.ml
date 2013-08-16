@@ -31,6 +31,8 @@ type bind_spec = Pos of int|Name of string
 (* define includes datatype for later fetching *)
 type define_spec = int * bool * oci_ptr
 
+type nullable = Nullable|Not_nullable
+
 (* Variant for the basic data types - datetime crosses back and forth as epoch, 
    and Oracle's NUMBER datatype of course can be either integer or floating 
    point but it doesn't make sense to make the OCaml layer deal only in floats *)
@@ -445,7 +447,26 @@ let oradesc lda tabname =
   let sth = oraopen lda in
   ignore(oci_statement_prepare sth.parent_lda.lda sth.sth (sprintf "select * from %s" tabname)); (* discard return value here *)
   oci_statement_execute sth.parent_lda.lda sth.sth sth.parent_lda.auto_commit true; (* true - with OCI_DESCRIBE_ONLY set *)
-  oci_get_column_types lda.lda sth.sth 
+  Array.map (fun x -> 
+    match x with 
+    |Col_type (col_name, col_type, col_size, is_int, is_null) 
+      -> (col_name, 
+	  (
+	    match (col_type, is_int) with 
+	    |(2, true) -> Integer 0
+	    |(2, false) -> Number 0.0
+	    |(1, _) -> Varchar ""
+	    |(12,_) -> Datetime (localtime 0.0)
+	    |_ -> Null
+	  ), col_size - 1, (* because we add 1 in the OCI layer to cope with C's \0 *) 
+	  (
+	    match is_null with
+	  |true -> Nullable
+	  |false -> Not_nullable
+	  )
+      )
+    |_ -> ("Unknown", Null, 0, Nullable)
+  ) (oci_get_column_types lda.lda sth.sth) 
 
 (* list of columns from last exec - this differs from oradesc in that it gives 
    all the columns in an actual query *)
