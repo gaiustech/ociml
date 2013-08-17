@@ -19,7 +19,7 @@ void epoch_to_ocidate(double e, OCIDate* ocidate) {
   gmtime_r(&t, &ut); /* convert to a Unix time */
 
 #ifdef DEBUG
-  char dbuf[256]; snprintf(dbuf, 255, "epoch_to_ocidate: epoch=%f year=%d month=%d day=%d", e, ut->tm_year + 1900, ut->tm_mon + 1, ut->tm_mday); debug(dbuf);
+  char dbuf[256]; snprintf(dbuf, 255, "epoch_to_ocidate: epoch=%f year=%d month=%d day=%d", e, ut.tm_year + 1900, ut.tm_mon + 1, ut.tm_mday); debug(dbuf);
 #endif
 
   OCIDateSetDate(ocidate, ut.tm_year + 1900, ut.tm_mon + 1, ut.tm_mday); 
@@ -44,7 +44,7 @@ double ocidate_to_epoch(OCIDate* ocidate) {
   double d = (double)mktime(&ut);
 
 #ifdef DEBUG
-  char dbuf[256]; snprintf(dbuf, 255, "ocidate_to_epoch: epoch=%f year=%d month=%d day=%d is_dst=%d", d, ut->tm_year + 1900, ut->tm_mon + 1, ut->tm_mday, ut->tm_isdst); debug(dbuf);
+  char dbuf[256]; snprintf(dbuf, 255, "ocidate_to_epoch: epoch=%f year=%d month=%d day=%d is_dst=%d", d, ut.tm_year + 1900, ut.tm_mon + 1, ut.tm_mday, ut.tm_isdst); debug(dbuf);
 #endif
   return d;
 }
