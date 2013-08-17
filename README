@@ -18,9 +18,10 @@ First setup the test schema by running tests/ociml_test.sql as a DBA, then
 $ make clean && make test && make shell
 
 Sample code is provided in the form of the tests in tests/ociml_test.ml. Quite
-a lot of time in the tests is generating large random datasets.
+a lot of time in the tests is generating large random datasets. The target
+"dev" enables all debugging and annotations.
 
-As root (but see below):
+As root:
 
 # make install
 

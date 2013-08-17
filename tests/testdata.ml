@@ -36,7 +36,7 @@ let rand_dt_list () =
 (* take a list of of datatypes and return some random data for all apart from the first *)
 let rand_row n dt_list = 
   let rand_int () = (Integer (Random.int 1000000)) in
-  let rand_number () = (Number (Random.float 1000000000.)) in
+  let rand_number () = (Number ( float_of_string (Printf.sprintf "%.3f" (Random.float 1000000000.)))) in
   let rand_date () = (Datetime (localtime (Random.float (time() *. 2.)))) in
   let rand_varchar () = 
     let rec rand_varchar_helper acc n = match n with
@@ -81,4 +81,8 @@ let dt_list_to_table_sql tabname dt_list =
 	      |_ -> dt_list_to_sql (String.concat "," [sql; sql_line]) dt_list_len xs in
   "CREATE TABLE " ^ tabname ^ " (\n" ^ (dt_list_to_sql "" (List.length dt_list) dt_list) ^ ")\n"
     
+(* Generate a SQL bind spec for a dt_list suitable for use with orabindexec *)
+let get_bind_vars xs = 
+  String.concat "," (Array.to_list (Array.mapi (fun pos a -> ":" ^ string_of_int (pos + 1)) (Array.of_list xs)))
+
 (* End of file *)

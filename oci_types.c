@@ -15,35 +15,36 @@
 /* convert an epoch time to an Oracle date */
 void epoch_to_ocidate(double e, OCIDate* ocidate) {
   time_t t = (time_t)e;
-  struct tm* ut = localtime(&t); /* convert to a Unix time */
+  struct tm ut;
+  gmtime_r(&t, &ut); /* convert to a Unix time */
 
 #ifdef DEBUG
   char dbuf[256]; snprintf(dbuf, 255, "epoch_to_ocidate: epoch=%f year=%d month=%d day=%d", e, ut->tm_year + 1900, ut->tm_mon + 1, ut->tm_mday); debug(dbuf);
 #endif
 
-  OCIDateSetDate(ocidate, ut->tm_year + 1900, ut->tm_mon + 1, ut->tm_mday); 
-  OCIDateSetTime(ocidate, ut->tm_hour + 1, ut->tm_min, ut->tm_sec + 1);
+  OCIDateSetDate(ocidate, ut.tm_year + 1900, ut.tm_mon + 1, ut.tm_mday); 
+  OCIDateSetTime(ocidate, ut.tm_hour, ut.tm_min, ut.tm_sec);
 }
 
 /* convert an Oracle date to epoch */
 double ocidate_to_epoch(OCIDate* ocidate) {
   int year, month, day, hour, minute, second;
-  time_t t;
-  struct tm* ut;
+  //time_t t;
+  struct tm ut;
 
   OCIDateGetDate(ocidate, &year, &month, &day);
   OCIDateGetTime(ocidate, &hour, &minute, &second);
 
-  time (&t);
-  ut = localtime(&t);
+  //time (&t);
+  //gmtime_r(&t, &ut);
 
-  ut->tm_year = year - 1900; ut->tm_mon = month - 1; ut->tm_mday = day;
-  ut->tm_hour = hour - 1;    ut->tm_min = minute;    ut->tm_sec = second - 1;
+  ut.tm_year = year - 1900; ut.tm_mon = month - 1; ut.tm_mday = day;
+  ut.tm_hour = hour;    ut.tm_min = minute;    ut.tm_sec = second; ut.tm_isdst = 0;
 
-  double d = (double)mktime(ut);
+  double d = (double)mktime(&ut);
 
 #ifdef DEBUG
-  char dbuf[256]; snprintf(dbuf, 255, "ocidate_to_epoch: epoch=%f year=%d month=%d day=%d", d, ut->tm_year + 1900, ut->tm_mon + 1, ut->tm_mday); debug(dbuf);
+  char dbuf[256]; snprintf(dbuf, 255, "ocidate_to_epoch: epoch=%f year=%d month=%d day=%d is_dst=%d", d, ut->tm_year + 1900, ut->tm_mon + 1, ut->tm_mday, ut->tm_isdst); debug(dbuf);
 #endif
   return d;
 }

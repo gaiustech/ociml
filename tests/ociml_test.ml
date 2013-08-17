@@ -35,7 +35,6 @@ let test_simple_select () =
     match result with
     |Varchar "X" -> Pass
     |_ -> Fail (orastring result)
-    
  with
     Oci_exception (e_code, e_desc) -> Fail e_desc
 
@@ -53,7 +52,37 @@ let test_setup_test_table () =
   with
     Oci_exception (e_code, e_desc) -> Fail e_desc
 
-let test_transactions () = Todo
+let test_transactions_commit () =
+  try
+    let lda1 = oralogon "ociml_test/ociml_test" in
+    let lda2 = oralogon "ociml_test/ociml_test" in
+    let sth1 = oraopen lda1 in
+    let sth2 = oraopen lda2 in
+    let test_row = rand_row 1 test_dt_list in
+    orasql sth1 "truncate table tab1";
+    oraparse sth1 ("insert into tab1 values (" ^ (get_bind_vars test_dt_list) ^ ")");
+    orabindexec sth1 [test_row];
+    oracommit lda1;
+    oraclose sth1;
+    oralogoff lda1;
+    orasql sth2 "select * from tab1";
+    let rs = orafetch sth2 in
+    match (rs = test_row) with
+    |true -> Pass
+    |false -> Fail (
+      String.concat "," 
+	(Array.to_list 
+	   (Array.mapi (fun i x -> 
+	     match (x = test_row.(i)) with
+	     |true -> ""
+	     |false -> Printf.sprintf "got %s, but wrote %s" (orastring x) (orastring test_row.(i))
+	    )
+	      rs
+	   )
+	)
+    )
+  with
+    Oci_exception (e_code, e_desc) -> Fail e_desc
 
 (* drop the table then attempt to select from it. We should get ORA-942 from the SELECT *)
 let test_drop_test_table () = 
@@ -62,14 +91,11 @@ let test_drop_test_table () =
     let sth = oraopen lda in
     orasql sth "drop table tab1";
     orasql sth "select * from tab1";
-    Pass
+    Fail "DROP TABLE did not work!"
   with
     Oci_exception (e_code, e_desc) -> match e_code with
     |942 -> Pass
     |_ -> Fail e_desc
-
-let get_bind_vars xs = 
-  String.concat "," (Array.to_list (Array.mapi (fun pos a -> ":" ^ string_of_int (pos + 1)) (Array.of_list xs)))
 
 let test_bulk_insert_performance rows batchsize () = 
   let dataset = rand_big_dataset test_dt_list rows in
@@ -104,17 +130,17 @@ let functional_tests = [
   (test_connect_to_db, "oralogon", "Connection to database");
   (test_simple_select, "oraopen, orasql, orafetch", "SELECT * FROM DUAL;");
   (test_setup_test_table, "oradesc", "Setup test table");
-  (test_transactions, "oracommit, oraroll", "Test tranactions");
+  (test_transactions_commit, "oraparse, orabindexec, oracommit", "Test COMMIT and SELECT from another session");
   (test_drop_test_table, "", "Drop test table");
 ]
 
-let performance_tests = [ 
+let performance_tests = [ (*
   ((test_bulk_insert_performance 10000 1), "Bulk insert performance: 10000 rows, 1 row per batch");
   ((test_bulk_insert_performance 10000 10), "Bulk insert performance: 10000 rows, 10 rows per batch");
   ((test_bulk_insert_performance 10000 100), "Bulk insert performance: 10000 rows, 100 rows per batch");
   ((test_bulk_insert_performance 10000 1000), "Bulk insert performance: 10000 rows, 1000 rows per batch");
   ((test_bulk_insert_performance 10000 10000), "Bulk insert performance: 10000 rows, 10000 rows per batch");
-  (* ((test_prefetch_performance 1), "Testing prefetch 1 row per fetch");
+   ((test_prefetch_performance 1), "Testing prefetch 1 row per fetch");
   ((test_prefetch_performance 10), "Testing prefetch 10 rows per fetch");
 			  *)]
 
