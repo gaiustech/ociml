@@ -16,7 +16,8 @@
 void epoch_to_ocidate(double e, OCIDate* ocidate) {
   time_t t = (time_t)e;
   struct tm ut;
-  gmtime_r(&t, &ut); /* convert to a Unix time */
+  localtime_r(&t, &ut); /* convert to a Unix time */
+  mktime(&ut);
 
 #ifdef DEBUG
   char dbuf[256]; snprintf(dbuf, 255, "epoch_to_ocidate: epoch=%f year=%d month=%d day=%d", e, ut.tm_year + 1900, ut.tm_mon + 1, ut.tm_mday); debug(dbuf);
@@ -29,18 +30,15 @@ void epoch_to_ocidate(double e, OCIDate* ocidate) {
 /* convert an Oracle date to epoch */
 double ocidate_to_epoch(OCIDate* ocidate) {
   int year, month, day, hour, minute, second;
-  //time_t t;
   struct tm ut;
 
   OCIDateGetDate(ocidate, &year, &month, &day);
   OCIDateGetTime(ocidate, &hour, &minute, &second);
 
-  //time (&t);
-  //gmtime_r(&t, &ut);
-
   ut.tm_year = year - 1900; ut.tm_mon = month - 1; ut.tm_mday = day;
-  ut.tm_hour = hour;    ut.tm_min = minute;    ut.tm_sec = second; ut.tm_isdst = 0;
+  ut.tm_hour = hour;    ut.tm_min = minute;    ut.tm_sec = second;  ut.tm_isdst = -1;
 
+  mktime(&ut); // should fix tm_isdst
   double d = (double)mktime(&ut);
 
 #ifdef DEBUG
