@@ -49,7 +49,16 @@ let rand_row n dt_list =
     |Datetime _ -> rand_date ()
     |Varchar _ -> rand_varchar () in
   Array.of_list ((Integer n) :: (List.map rand_dt (List.tl dt_list)))
-    
+   
+let rand_aq_msg () = 
+  let rand_int () = (Integer (Random.int 1000000)) in
+  let rand_varchar () = 
+    let rec rand_varchar_helper acc n = match n with
+      |0 -> acc
+      |_ -> rand_varchar_helper (acc ^ (Char.escaped (Char.chr (97 + (Random.int 26))))) (n - 1) in
+    (Varchar (rand_varchar_helper "" (Random.int 80))) in
+  [|rand_int (); rand_varchar ();|]
+ 
 (* generate a big random dataset *)
 let rand_big_dataset dt_list n = 
   let rec rand_big_dataset_helper acc n =
@@ -84,5 +93,38 @@ let dt_list_to_table_sql tabname dt_list =
 (* Generate a SQL bind spec for a dt_list suitable for use with orabindexec *)
 let get_bind_vars xs = 
   String.concat "," (Array.to_list (Array.mapi (fun pos a -> ":" ^ string_of_int (pos + 1)) (Array.of_list xs)))
+
+let get_named_bind_vars xs = 
+  String.concat "," (Array.to_list (Array.mapi (fun pos a -> ":COL" ^ string_of_int pos) (Array.of_list xs)))
+
+(* Approximate-equal for some datatypes *)
+let (===) a b = 
+  let e = Array.mapi (fun i x -> match x with
+    |Number n -> (abs_float (n -. (match b.(i) with |Number o -> o|_ -> 0.0))) <= 0.0001 (* epsilon_float too small! *)
+    |_ -> (x = b.(i))
+  ) a in
+  match List.filter (fun x -> (x = false)) (Array.to_list e) with
+  |[] -> true
+  |_ -> false
+
+(* file handling *)
+let slurp_channel channel =
+  let buffer_size = 4096 in
+  let buffer = Buffer.create buffer_size in
+  let string = String.create buffer_size in
+  let chars_read = ref 1 in
+  while !chars_read <> 0 do
+    chars_read := input channel string 0 buffer_size;
+    Buffer.add_substring buffer string 0 !chars_read
+  done;
+  Buffer.contents buffer
+     
+let slurp_file filename =
+  let channel = open_in_bin filename in
+  let result =
+    try slurp_channel channel
+    with e -> close_in channel; raise e in
+  close_in channel;
+  result
 
 (* End of file *)
