@@ -537,7 +537,7 @@ let orafetch_out sth =
 	     begin
 	       let epoch = oci_get_date_from_context sth.parent_lda.lda (Hashtbl.find sth.oci_ptrs bs) sth.out_counter in
 	       debug(sprintf "gotten epoch time back as %f" epoch);
-	       rs.(!i) <- Datetime (localtime epoch);
+	       rs.(!i) <- Datetime (gmtime epoch);
 	     end
 	   |RefCursor ->
 	     (* get the oci_statement from sth.ref_cursors and turn it into a meta_statement *)
