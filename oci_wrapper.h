@@ -25,7 +25,7 @@ typedef struct {
 
 /* struct for defining for rows fetched */
 typedef struct {
-  OCIDefine* defh;
+  OCIDefine* defh; 
   void* ptr; /* the data itself */
   int dtype;
   double dbl;
@@ -34,6 +34,7 @@ typedef struct {
 
 typedef struct {
   void* ptr;
+  int managed_by_oci; /* because we want to have a pointer to the TDO object, which will be freed by OCI */
 } c_alloc_t;
 
 /* struct for storing the callback data for a number */

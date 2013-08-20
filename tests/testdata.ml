@@ -50,15 +50,6 @@ let rand_row n dt_list =
     |Varchar _ -> rand_varchar () in
   Array.of_list ((Integer n) :: (List.map rand_dt (List.tl dt_list)))
    
-let rand_aq_msg () = 
-  let rand_int () = (Integer (Random.int 1000000)) in
-  let rand_varchar () = 
-    let rec rand_varchar_helper acc n = match n with
-      |0 -> acc
-      |_ -> rand_varchar_helper (acc ^ (Char.escaped (Char.chr (97 + (Random.int 26))))) (n - 1) in
-    (Varchar (rand_varchar_helper "" (Random.int 80))) in
-  [|rand_int (); rand_varchar ();|]
- 
 (* generate a big random dataset *)
 let rand_big_dataset dt_list n = 
   let rec rand_big_dataset_helper acc n =
@@ -107,7 +98,17 @@ let (===) a b =
   |[] -> true
   |_ -> false
 
-(* file handling *)
+(* Generate a random AQ message *)
+let rand_aq_msg () = 
+  let rand_int () = (Integer (Random.int 1000000)) in
+  let rand_varchar () = 
+    let rec rand_varchar_helper acc n = match n with
+      |0 -> acc
+      |_ -> rand_varchar_helper (acc ^ (Char.escaped (Char.chr (97 + (Random.int 26))))) (n - 1) in
+    (Varchar (rand_varchar_helper "" (Random.int 80))) in
+  [|rand_int (); rand_varchar ();|]
+
+(* file handling  - borrowed from PLEAC *)
 let slurp_channel channel =
   let buffer_size = 4096 in
   let buffer = Buffer.create buffer_size in

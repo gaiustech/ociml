@@ -9,7 +9,7 @@
 -- 14-AUG-2013 Gaius Initial version
 
 conn / as sysdba
-drop user ociml_test;
+drop user ociml_test cascade;
 
 create user ociml_test identified by ociml_test default tablespace users quota 1g on users temporary tablespace temp;
 grant connect, resource to ociml_test;
@@ -79,4 +79,25 @@ begin
 end;
 /
 
+
+create or replace package pkg_ref_cursor as
+    type t_cursor is ref cursor;
+    procedure pr_ref_cursor (p_refcur out t_cursor);
+end pkg_ref_cursor;
+/
+ 
+-- this should be implicitly recompiled when used...
+create table tab1(c1 number);
+create or replace package body pkg_ref_cursor as
+    procedure pr_ref_cursor (p_refcur out t_cursor) is
+        v_cursor t_cursor;
+    begin
+        open v_cursor for select * from tab1;
+        p_refcur := v_cursor;
+    end pr_ref_cursor;
+end pkg_ref_cursor;
+/
+drop table tab1;
+
+quit
 -- EOF

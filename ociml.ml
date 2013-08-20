@@ -129,7 +129,7 @@ external oci_size_of_pointer: unit -> int = "caml_oci_size_of_pointer"
 external oci_size_of_number: unit -> int = "caml_oci_size_of_number" (* Size of OCINumber *)
 external oci_constant_assign: oci_ptr -> int -> int -> unit = "c_write_int_at_offset"
 external oci_write_ptr_at_offset: oci_ptr -> int -> oci_ptr -> unit = "caml_write_ptr_at_offset"
-external oci_read_ptr_at_offset: oci_ptr -> int -> oci_ptr = "caml_read_ptr_at_offset"
+external oci_read_ptr_at_offset: oci_ptr -> int -> bool -> oci_ptr = "caml_read_ptr_at_offset"
 external oci_write_int_at_offset: oci_handles -> oci_ptr -> int -> int -> unit = "caml_oci_write_int_at_offset"
 external oci_write_flt_at_offset: oci_handles -> oci_ptr -> int -> float -> unit = "caml_oci_write_flt_at_offset"
 external oci_version: unit -> (int * int) = "caml_oci_version"
@@ -591,7 +591,7 @@ let oci_flt_from_payload lda pa i =
   oci_flt_from_number lda.lda pa i
 
 let oci_string_from_payload pa i = 
-  let sp = oci_read_ptr_at_offset pa i in
+  let sp = oci_read_ptr_at_offset pa i true in
   oci_string_from_string global_env sp
 
 let calculate_aq_message_size size_of_pointer size_of_number payload =

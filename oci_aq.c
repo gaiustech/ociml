@@ -39,7 +39,7 @@ value caml_oci_get_tdo(value env, value handles, value type_name) {
   char dbuf[256]; snprintf(dbuf, 255, "caml_oci_get_tdo: getting TDO for type '%s'", t); debug(dbuf);
 #endif
   sword x;
-  c_alloc_t tdo = {NULL};
+  c_alloc_t tdo = {NULL, 1};
 
   /* use the current schema for the type if object, else if RAW the use the AQ schema */
   if (strncmp(t, "RAW", 3) == 0) {
@@ -52,7 +52,7 @@ value caml_oci_get_tdo(value env, value handles, value type_name) {
   value v = caml_alloc_custom(&c_alloc_t_custom_ops, sizeof(c_alloc_t), 0, 1);
   C_alloc_val(v) = tdo;
 #ifdef DEBUG
-  debug("got TDO");
+  snprintf(dbuf, 255, "caml_oci_get_tdo: got TDO at address %p", tdo.ptr); debug(dbuf);
 #endif
   CAMLreturn(v);
 }
@@ -66,7 +66,7 @@ value caml_oci_string_assign_text(value env, value handles, value str) {
 #ifdef DEBUG
   char dbuf[256]; snprintf(dbuf, 255, "caml_oci_string_assign_text: '%s'", s); debug(dbuf);
 #endif
-  c_alloc_t t = {NULL};
+  c_alloc_t t = {NULL, 1};
 
   sword x = OCIStringAssignText(e, h.err, (text*)s, strlen(s), (OCIString**)&t.ptr);
   CHECK_OCI(x, h);
@@ -98,8 +98,10 @@ value caml_oci_int_from_number(value handles, value cht, value offset) {
 #ifdef DEBUG
   snprintf(dbuf, 255, "caml_oci_int_from_number: retrieved number from payload as %d", test); debug(dbuf);
 #endif
+  //free(on);
   CAMLreturn(Val_int(test));
 }
+
 
 value caml_oci_flt_from_number(value handles, value cht, value offset) {
   CAMLparam3(handles, cht, offset);
@@ -107,10 +109,11 @@ value caml_oci_flt_from_number(value handles, value cht, value offset) {
   c_alloc_t t = C_alloc_val(cht);
   int o = Int_val(offset);
 
-  OCINumber* on = (OCINumber*)malloc(sizeof(OCINumber));
+  //OCINumber* on = (OCINumber*)malloc(sizeof(OCINumber));
+  OCINumber on;
   memcpy(&on, &t.ptr + o, sizeof(OCINumber));
   double test;
-  sword x = OCINumberToReal(h.err, on, sizeof(double), &test);
+  sword x = OCINumberToReal(h.err, &on, sizeof(double), &test);
   CHECK_OCI(x, h);
 #ifdef DEBUG
   char dbuf[256]; snprintf(dbuf, 255, "caml_oci_int_from_number: retrieved number from payload as %f", test); debug(dbuf);
@@ -122,6 +125,10 @@ value caml_oci_string_from_string(value env, value cht) {
   CAMLparam2(env, cht);
   c_alloc_t t = C_alloc_val(cht);
   OCIEnv* e = Oci_env_val(env);
+  //t.managed_by_oci = 1;
+#ifdef DEBUG
+  char dbuf[256]; snprintf(dbuf, 255, "caml_oci_string_from_string: t.ptr=%p, t.managed_by_oci=%d", t.ptr, t.managed_by_oci); debug(dbuf);
+#endif
   CAMLreturn(caml_copy_string((char*)OCIStringPtr(e, t.ptr)));
 }
 
@@ -199,7 +206,7 @@ value caml_oci_aq_dequeue(value env, value handles, value queue_name, value mess
 #endif
 
   void* ind_buf = NULL;
-  c_alloc_t msg_buf = {NULL};
+  c_alloc_t msg_buf = {NULL, 1};
   caml_release_runtime_system();
   x = OCIAQDeq(h.svc, h.err, (text*)qn, deqopt, 0, mt.ptr, (dvoid**)&msg_buf.ptr, (dvoid**)&ind_buf, 0, 0);
   caml_acquire_runtime_system();

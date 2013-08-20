@@ -235,7 +235,7 @@ let functional_tests = [
   (test_drop_test_table, "", "Drop test table") ;
 ]
 
-let performance_tests = [ (*
+let performance_tests = [ 
   ((test_bulk_insert_performance 10000 1), "Bulk insert performance: 10000 rows, 1 row per batch");
   ((test_bulk_insert_performance 10000 10), "Bulk insert performance: 10000 rows, 10 rows per batch");
   ((test_bulk_insert_performance 10000 100), "Bulk insert performance: 10000 rows, 100 rows per batch");
@@ -243,7 +243,7 @@ let performance_tests = [ (*
   ((test_bulk_insert_performance 10000 10000), "Bulk insert performance: 10000 rows, 10000 rows per batch");
    ((test_prefetch_performance 1), "Testing prefetch 1 row per fetch");
   ((test_prefetch_performance 10), "Testing prefetch 10 rows per fetch");
-			  *)]
+]
 
 let () =
   print_endline "*** Running functional tests ***";
@@ -266,7 +266,7 @@ let () =
   print_newline ()
 
 
-(*let () =
+let () =
   print_endline "*** Running performance tests ***";
   oradebug false;
   test_setup_test_table ();
@@ -278,7 +278,7 @@ let () =
   List.iter run_test performance_tests;
   test_drop_test_table ();
   r#print_report ();
-  print_endline "*** Performance test suite complete ***" *)
+  print_endline "*** Performance test suite complete ***" 
 
 
 

@@ -61,7 +61,12 @@ void caml_free_alloc_t(value ch) {
   debug("caml_free_alloc_t: entered");
 #endif
   c_alloc_t x = C_alloc_val(ch);
-  free(x.ptr);
+#ifdef DEBUG
+  char dbuf[256]; snprintf(dbuf, 255, "caml_free_alloc_t: x.ptr=%p x.managed_by_oci=%d", x.ptr, x.managed_by_oci); debug(dbuf);
+#endif
+  if (!x.managed_by_oci) {
+    free(x.ptr);
+  }
   CAMLreturn0;
 }
 
@@ -73,7 +78,7 @@ value caml_alloc_c_mem(value bytes) {
   CAMLparam1(bytes);
   int b = Int_val(bytes);
 
-  c_alloc_t c = {NULL};
+  c_alloc_t c = {NULL, 0};
   c.ptr = malloc(b);
 #ifdef DEBUG
   char dbuf[256]; snprintf(dbuf, 255, "caml_alloc_c_mem: allocated %d bytes at address %p", b, c.ptr); debug(dbuf);
@@ -112,7 +117,7 @@ value caml_oci_write_int_at_offset(value handles, value cht, value offset, value
   sword x;
 
 #ifdef DEBUG
-  char dbuf[256]; snprintf(dbuf, 255, "caml_oci_write_int_at_offset: creating OCINumber for %d at offset %d", ni, o); debug(dbuf);
+  char dbuf[256]; snprintf(dbuf, 255, "caml_oci_write_int_at_offset: creating OCINumber for %d at offset %d from %p", ni, o, c.ptr); debug(dbuf);
 #endif
   //OCINumber* on;
   //OCIMemoryAlloc(h.ses, h.err, (dvoid**)&on, OCI_DURATION_STATEMENT, sizeof(OCINumber), OCI_MEMORY_CLEARED);
@@ -183,15 +188,16 @@ value c_write_int_at_offset(value cht, value offset, value intdata) {
 
 
 /* read a pointer at offset bytes from cht.ptr */
-value caml_read_ptr_at_offset(value cht, value offset) {
+value caml_read_ptr_at_offset(value cht, value offset, value oci_managed_ptr) {
   CAMLparam2(cht, offset);
   c_alloc_t c = C_alloc_val(cht);
   int o = Int_val(offset);
-  c_alloc_t np = {NULL};
+  int omp = Bool_val(oci_managed_ptr);
+  c_alloc_t np = {NULL, omp};
   
   memcpy(&np.ptr, c.ptr + o, sizeof(void*));
 #ifdef DEBUG
-  char dbuf[256]; snprintf(dbuf, 255, "caml_read_ptr_at_offset: read %d-byte pointer to %p at offset %d", sizeof(void*), np.ptr, o); debug(dbuf);
+  char dbuf[256]; snprintf(dbuf, 255, "caml_read_ptr_at_offset: read %d-byte pointer to %p at offset %d oci_managed_ptr=%d", sizeof(void*), np.ptr, o, omp); debug(dbuf);
 #endif
   
   value v = caml_alloc_custom(&c_alloc_t_custom_ops, sizeof(c_alloc_t), 0, 1);
