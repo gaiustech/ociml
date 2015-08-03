@@ -109,7 +109,6 @@ value caml_oci_flt_from_number(value handles, value cht, value offset) {
   c_alloc_t t = C_alloc_val(cht);
   int o = Int_val(offset);
 
-  //OCINumber* on = (OCINumber*)malloc(sizeof(OCINumber));
   OCINumber on;
   memcpy(&on, &t.ptr + o, sizeof(OCINumber));
   double test;

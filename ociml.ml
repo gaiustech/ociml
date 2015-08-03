@@ -28,10 +28,11 @@ type meta_handle = {connection_id:int;
 (* variant enabling binding by position or by name *)
 type bind_spec = Pos of int|Name of string
 
-(* define includes datatype for later fetching *)
-type define_spec = int * bool * oci_ptr
-
 type nullable = Nullable|Not_nullable
+
+(* define includes datatype for later fetching *)
+type define_spec = {dtype:int; is_int:bool ; is_null:bool; ptr:oci_ptr}
+
 
 (* Variant for the basic data types - datetime crosses back and forth as epoch, 
    and Oracle's NUMBER datatype of course can be either integer or floating 
@@ -112,7 +113,7 @@ external oci_bind_date_by_name: oci_handles -> oci_statement -> oci_bindhandle -
 
 (* fetching - oci_select.c *)
 external oci_get_column_types: oci_handles -> oci_statement -> col_value array = "caml_oci_get_column_types"
-external oci_define: oci_handles -> oci_statement -> int -> (int * bool) -> int -> define_spec = "caml_oci_define"
+external oci_define: oci_handles -> oci_statement -> int -> (int * bool * bool) -> int -> define_spec = "caml_oci_define"
 external oci_fetch: oci_handles -> oci_statement -> unit = "caml_oci_fetch"
 external oci_set_prefetch: oci_handles -> oci_statement -> int -> unit = "caml_oci_set_prefetch"
 external oci_get_rows_affected: oci_handles -> oci_statement -> int = "caml_oci_get_rows_affected"
@@ -239,7 +240,7 @@ let oraprefetch_default = ref 10
 let oraprompt = ref "not connected > "
 
 (* set this to what you want NULLs to be returned as, e.g. Integer 0 or Varchar "" or Datetime 0.0 even! *)
-let internal_oranullval = ref (Integer 0)
+let internal_oranullval = ref @@ (Varchar "null")
 let oranullval x =
   match x with
     |Null -> () (* ignore this request! *)
@@ -299,7 +300,8 @@ let define_select_cols sth =
     Array.iteri (fun i x  ->
       match x with
 	|Col_type (name, dtype, size, is_int, is_null) ->
-	  Hashtbl.replace sth.defined_vals (Pos i) (oci_define sth.parent_lda.lda sth.sth i (dtype, is_int) size)
+	  Hashtbl.replace sth.defined_vals (Pos i) (oci_define sth.parent_lda.lda
+                                               sth.sth i (dtype, is_int, is_null) size)
 	| _ -> () 
     )  sql_cols
   end
@@ -436,7 +438,8 @@ let rec orastring c =
     |Number x   -> (sprintf "%f" x)
     |Datetime x -> (sprintf "%02d-%s-%d %02d:%02d:%02d" x.tm_mday Log_message.months.(x.tm_mon) (x.tm_year+1900) x.tm_hour x.tm_min x.tm_sec)
     |Col_type (a,b,c,d,e) -> a
-    |Null -> orastring !internal_oranullval
+    |Null -> begin match !internal_oranullval with Null -> "null" | x ->
+        orastring x end
     |RefCursor -> "#REF CURSOR#"
     |Statement _ -> "#STATEMENT#"
     |Binary _ -> "#BINARY DATA#"
@@ -477,6 +480,10 @@ let oci_get_defined_date ptr =
   let d = oci_get_date_as_double ptr in
   localtime d
 
+let ora_get_or_null null expr =
+  if null then Null else
+  try expr () with Oci_exception (22060, _) -> Null
+                                      
 (* call the underlying OCI fetch, advancing the cursor by one row, then extract 
    the data one column at a time from the define handles *)
 let orafetch_select sth = 
@@ -487,15 +494,15 @@ let orafetch_select sth =
       |_ -> oci_fetch sth.parent_lda.lda sth.sth);
     let row = Array.make sth.num_cols Null in
     (for i = 0 to (sth.num_cols - 1) do
-	let (dt, is_int, ptr) = Hashtbl.find sth.defined_vals (Pos i) in
-	match dt with
-	  |1  -> row.(i) <- Varchar  (oci_get_defined_string ptr)
-	  |12 -> row.(i) <- Datetime (oci_get_defined_date ptr)
-	  |2 -> (* could be an int or a float *) 
+       let {dtype=dt; is_int; is_null; ptr} = Hashtbl.find sth.defined_vals (Pos i) in
+       match dt with
+	  |1  -> row.(i) <- ora_get_or_null is_null @@ fun () -> Varchar (oci_get_defined_string ptr)
+	  |12 -> row.(i) <- ora_get_or_null is_null @@ fun () -> Datetime (oci_get_defined_date ptr)
+	  |2 -> (* could be an int or a float *)
 	    (debug(sprintf "col=%d type=%d is_int=%b" i dt is_int);
-	     match is_int with
-	      |true  -> row.(i) <- Integer (oci_get_int    sth.parent_lda.lda ptr)
-	      |false -> row.(i) <- Number  (oci_get_double sth.parent_lda.lda ptr)
+	     match is_int with             
+	      |true -> row.(i) <- ora_get_or_null is_null @@ fun () -> Integer (oci_get_int sth.parent_lda.lda ptr)
+	      |false -> row.(i) <- ora_get_or_null is_null @@ fun () -> Number (oci_get_double sth.parent_lda.lda ptr)
 	    )
 	  |_ -> debug(sprintf "orafetch unhandled type in row %d col=%d datatype=%d is_int=%b" sth.rows_affected i dt is_int);
      done); 
@@ -837,7 +844,7 @@ let orabindexec_bulk sth cval =
       |Varchar _  -> oci_bind_bulk_chr sth.parent_lda.lda sth.sth bh ptr (!string_size, (i + 1))
       |Datetime _ -> oci_bind_bulk_odt sth.parent_lda.lda sth.sth bh ptr (date_size,  (i + 1))
       |_ -> ());
-    debug(sprintf "orabindexec_bulk: done bind at position %d type %s" (i + 1) (match x with 
+    debug(sprintf "orabindexec_bulk: done bind at position %d type %s" (i + 1) (match x with
     |Integer _ -> "Integer"
     |Number _ -> "Number"
     |Varchar _ -> "Varchar"
@@ -852,9 +859,8 @@ let orabindexec_bulk sth cval =
   sth.rows_affected <- oci_get_rows_affected sth.parent_lda.lda sth.sth;
   oci_sess_set_attr sth.parent_lda.lda oci_attr_action "orabindexec_bulk: done";
   ()
-    
 let orabindexec = orabindexec_bulk
-  
+
 (* End of file *)
 
-    
+

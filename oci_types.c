@@ -97,5 +97,4 @@ value caml_oci_get_int(value handles, value defs) {
   CAMLreturn(Val_int(r));
 }
 
-
 /* end of file */
