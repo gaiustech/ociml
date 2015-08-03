@@ -1,7 +1,7 @@
 opam-version: "1.2"
 name: "ociml"
 version: "dev"
-author : "Gauis Hammond, Carmelo Piccione carmelo.piccione+ociml@gmail.com"
+author : "Gaius Hammond, Carmelo Piccione carmelo.piccione+ociml@gmail.com"
 maintainer: "carmelo.piccione+ociml@gmail.com"
 homepage: "https://github.com/gauistech/ociml"
 dev-repo: "git://github.com/gaiustech/ociml.git"
