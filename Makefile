@@ -42,7 +42,7 @@ shell: all
 	ocamlmktop -g -custom -o ocimlsh $(CCLIBS) unix.cma $(MLOBJS) $(COBJS)
 
 ociml.cma:	$(MLOBJS) $(COBJS)
-	ocamlmklib -verbose -o ociml -L$(ORACLE_HOME)/lib -lclntsh -cclib -lclntsh unix.cma $(MLOBJS) $(COBJS)
+	ocamlmklib -verbose -o ociml -L$(ORACLE_HOME)/lib -lclntsh -cclib -lclntsh $(MLOBJS) $(COBJS)
 
 ociml.cmxa:	$(MLOPTOBJS) $(COBJS)
 	ocamlmklib -verbose -o ociml -L$(ORACLE_HOME)/lib -lclntsh -cclib -lclntsh $(MLOPTOBJS) $(COBJS)
