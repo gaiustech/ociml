@@ -26,8 +26,6 @@ void raise_caml_exception(int exception_code, char* exception_string) {
   CAMLlocal1(e);
   e = caml_alloc_tuple(2);
   Store_field(e, 0, Val_long(exception_code));
-  int len = strlen(exception_string) - 1;
-  exception_string[len] = '\0'; /* remove annoying trailing newline Oracle puts on exception messages */
   Store_field(e, 1, caml_copy_string(exception_string));
   caml_raise_with_arg(*caml_named_value("Oci_exception"), e);
 }  
@@ -37,6 +35,8 @@ void oci_non_success(oci_handles_t h) {
   text* errbuf = (text*)malloc(256);
   sb4 errcode;
   OCIErrorGet ((dvoid*) h.err, 1, NULL, &errcode, errbuf, 255,  OCI_HTYPE_ERROR);
+  int len = strlen(errbuf) - 1;
+  errbuf[len] = '\0'; /* remove annoying trailing newline Oracle puts on exception messages */
   raise_caml_exception((int)errcode, (char*)errbuf);
 }
 
